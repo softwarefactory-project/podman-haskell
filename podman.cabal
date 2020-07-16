@@ -1,5 +1,5 @@
 cabal-version:       2.4
-name:                podman-haskell
+name:                podman
 version:             0.0.0.0
 synopsis:            See README for more info
 description:
@@ -19,6 +19,11 @@ tested-with:         GHC == 8.6.5
 
 common common-options
   build-depends:       base
+                     , aeson
+                     , aeson-casing
+                     , bytestring
+                     , simple-cmd
+                     , text
 
   ghc-options:         -Wall
                        -Wcompat
@@ -41,18 +46,20 @@ common common-options
   default-extensions:  NamedFieldPuns
                      , OverloadedStrings
                      , RecordWildCards
+                     , DeriveGeneric
+                     , DerivingStrategies
   default-language:    Haskell2010
 
 library
   import:              common-options
   hs-source-dirs:      src
-  exposed-modules:     PodmanHaskell
+  exposed-modules:     Podman
 
 executable podman-haskell
   import:              common-options
   hs-source-dirs:      app
   main-is:             Main.hs
-  build-depends:       podman-haskell
+  build-depends:       podman
   ghc-options:         -threaded
                        -rtsopts
                        -with-rtsopts=-N
@@ -62,7 +69,9 @@ test-suite podman-haskell-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
-  build-depends:       podman-haskell
+  build-depends:       podman
+                     , tasty
+                     , tasty-hunit
   ghc-options:         -threaded
                        -rtsopts
                        -with-rtsopts=-N
