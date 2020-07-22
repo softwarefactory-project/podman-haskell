@@ -1,3 +1,5 @@
-# podman-haskell
+# podman
 
-A podman client
+A podman client library.
+
+Main [documentation](https://docs.softwarefactory-project.io/podman-haskell/)

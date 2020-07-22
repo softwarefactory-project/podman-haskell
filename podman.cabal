@@ -1,10 +1,12 @@
 cabal-version:       2.4
 name:                podman
 version:             0.0.0.0
-synopsis:            See README for more info
+synopsis:            A podman client library
 description:
-    See README for more info.
-    See README.md for more details.
+    Podman is a client library to interface with https://podman.io/
+    .
+    Use this library to query podman container status.
+    .
 license:             Apache-2.0
 license-file:        LICENSE
 author:              Software Factory Dev
@@ -13,7 +15,6 @@ copyright:           2020 Software Factory Dev
 category:            Development
 build-type:          Simple
 extra-doc-files:     README.md
-                     CHANGELOG.md
 tested-with:         GHC == 8.6.5
                      GHC == 8.10.1
 

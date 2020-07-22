@@ -1,6 +1,9 @@
 module Podman
-  ( ContainerState (..),
+  ( -- * Main data types
+    ContainerState (..),
     Container (..),
+
+    -- * Convenient functions
     inspectContainer,
     isContainer,
   )
@@ -36,12 +39,22 @@ data Container
 instance FromJSON Container where
   parseJSON = genericParseJSON $ aesonPrefix pascalCase
 
-inspectContainer :: String -> IO (Maybe Container)
+-- | Read a container status
+inspectContainer ::
+  -- | The container name
+  String ->
+  -- | Returns the container status
+  IO (Maybe Container)
 inspectContainer name = do
   podInspect <- pack . fromMaybe [] <$> cmdMaybe "podman" ["container", "inspect", name]
   return $ case decode podInspect of
     Just [container] -> Just container
     _ -> Nothing
 
-isContainer :: String -> IO Bool
+-- | Check if a container exists
+isContainer ::
+  -- | The container name
+  String ->
+  -- | Returns True is the container exists
+  IO Bool
 isContainer name = isJust <$> cmdMaybe "podman" ["container", "exists", name]
