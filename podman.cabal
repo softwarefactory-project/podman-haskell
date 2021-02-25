@@ -48,10 +48,15 @@ common common-options
 library
   import:              common-options
   build-depends:       aeson-casing           < 0.3
+                     , containers             < 0.7
                      , http-client            >= 0.5.0    && < 0.8
                      , http-client-tls        >= 0.2.0    && < 0.4
-                     , text                   >= 0.11.1.0 && < 1.3
+                     , http-types             < 0.13
+                     , linux-capabilities     < 0.2
                      , network                < 4
+                     , text                   >= 0.11.1.0 && < 1.3
+                     , time                   < 1.12
+                     , uuid                   < 1.4
   hs-source-dirs:      src
   exposed-modules:     Podman
                      , Podman.Types
