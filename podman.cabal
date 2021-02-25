@@ -50,6 +50,7 @@ library
   build-depends:       aeson-casing           < 0.3
                      , http-client            >= 0.5.0    && < 0.8
                      , http-client-tls        >= 0.2.0    && < 0.4
+                     , http-types             < 0.13
                      , text                   >= 0.11.1.0 && < 1.3
                      , network                < 4
   hs-source-dirs:      src
