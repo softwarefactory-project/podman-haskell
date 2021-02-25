@@ -1,40 +1,38 @@
 cabal-version:       2.4
 name:                podman
-version:             0.0.1.0
-synopsis:            A podman client library
+version:             0.1.0.0
+synopsis:            A podman remote client library
 description:
     Podman is a client library to interface with https://podman.io/
     .
-    Use this library to query podman container status.
-    .
+homepage:            https://github.com/softwarefactory-project/podman-haskell#readme
+bug-reports:         https://github.com/softwarefactory-project/podman-haskell/issues
 license:             Apache-2.0
 license-file:        LICENSE
-author:              Software Factory Dev
-maintainer:          Software Factory Dev <Software Factory Dev <softwarefactory-dev@redhat.com>>
-copyright:           2020 Software Factory Dev
-category:            Development
+author:              Tristan de Cacqueray
+maintainer:          tdecacqu@redhat.com
+copyright:           2021 Red Hat
+category:            System
 build-type:          Simple
-extra-doc-files:     README.md
-tested-with:         GHC == 8.6.5
-                     GHC == 8.10.1
+extra-doc-files:     CHANGELOG.md
+                     README.md
+extra-source-files:  test/data/*.json
+tested-with:         GHC == 8.10.3
+
+source-repository head
+  type:                git
+  location:            https://github.com/softwarefactory-project/podman-haskell.git
 
 common common-options
-  build-depends:       base                   >= 4.11.0.0 && < 5
+  build-depends:       base                   < 5
                      , aeson                  >= 1.0.0.0  && < 1.6
-                     , aeson-casing           < 0.3.0.0
-                     , bytestring             < 0.11
-                     , containers             >= 0.5.8.0  && < 0.7
-                     , simple-cmd             < 0.3
-                     , text                   >= 0.11.1.0 && < 1.3
-
   ghc-options:         -Wall
                        -Wcompat
                        -Widentities
                        -Wincomplete-uni-patterns
                        -Wincomplete-record-updates
                        -Wredundant-constraints
-                       -- Let's keep unused imports around as documentation purpose
-                       -Wno-unused-imports
+                       -Wunused-imports
   if impl(ghc >= 8.2)
     ghc-options:       -fhide-source-paths
   if impl(ghc >= 8.4)
@@ -45,26 +43,18 @@ common common-options
   if impl(ghc >= 8.10)
     ghc-options:       -Wunused-packages
 
-  default-extensions:  NamedFieldPuns
-                     , OverloadedStrings
-                     , RecordWildCards
-                     , DeriveGeneric
-                     , DerivingStrategies
   default-language:    Haskell2010
 
 library
   import:              common-options
+  build-depends:       aeson-casing           < 0.3
+                     , http-client            >= 0.5.0    && < 0.8
+                     , http-client-tls        >= 0.2.0    && < 0.4
+                     , text                   >= 0.11.1.0 && < 1.3
+                     , network                < 4
   hs-source-dirs:      src
   exposed-modules:     Podman
-
-executable podman-haskell
-  import:              common-options
-  hs-source-dirs:      app
-  main-is:             Main.hs
-  build-depends:       podman
-  ghc-options:         -threaded
-                       -rtsopts
-                       -with-rtsopts=-N
+                     , Podman.Types
 
 test-suite podman-haskell-test
   import:              common-options
@@ -72,8 +62,8 @@ test-suite podman-haskell-test
   hs-source-dirs:      test
   main-is:             Spec.hs
   build-depends:       podman
-                     , tasty                      >= 0.11.2   && < 1.5
-                     , tasty-hunit                >= 0.10     && < 0.11
+                     , tasty                  >= 0.11.2   && < 1.5
+                     , tasty-hunit            >= 0.10     && < 0.11
   ghc-options:         -threaded
                        -rtsopts
                        -with-rtsopts=-N

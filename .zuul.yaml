@@ -4,6 +4,7 @@
         - cabal-test:
             vars:
               ghc_version: 8.8
+              cabal_install_args: "--lib"
             nodeset:
               nodes:
                 - name: container
