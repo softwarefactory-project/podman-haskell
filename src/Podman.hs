@@ -1,60 +1,52 @@
-module Podman
-  ( -- * Main data types
-    ContainerState (..),
-    Container (..),
+{-# LANGUAGE OverloadedStrings #-}
 
-    -- * Convenient functions
-    inspectContainer,
-    isContainer,
+-- |
+-- Copyright: (c) 2021 Tristan de Cacqueray
+-- SPDX-License-Identifier: Apache-2.0
+-- Maintainer: Tristan de Cacqueray <tdecacqu@redhat.com>
+--
+-- Podman API client
+module Podman
+  ( -- * Client
+    PodmanClient,
+    withClient,
+
+    -- * Api
+    getVersion,
+
+    -- * Types
+    Version (..),
   )
 where
 
-import Data.Aeson (FromJSON, decode, genericParseJSON, parseJSON)
-import Data.Aeson.Casing (aesonPrefix, pascalCase)
-import Data.ByteString.Lazy.Char8 (pack)
-import Data.Maybe (fromMaybe, isJust)
+import Control.Monad.IO.Class (MonadIO (..))
+import Data.Aeson (FromJSON, eitherDecode)
 import Data.Text (Text)
-import GHC.Generics (Generic)
-import SimpleCmd (cmd, cmdMaybe, cmd_)
+import qualified Data.Text as T
+import Network.HTTP.Client (Manager, httpLbs, newManager, parseUrlThrow, requestHeaders, responseBody)
+import Network.HTTP.Client.TLS (tlsManagerSettings)
+import Podman.Types
 
-data ContainerState
-  = ContainerState
-      { containerRunning :: Bool,
-        containerStatus :: Text
-      }
-  deriving stock (Show, Generic)
+data PodmanClient = PodmanClient
+  { baseUrl :: Text,
+    manager :: Manager
+  }
 
-instance FromJSON ContainerState where
-  -- this custom decoder takes care of setting 'Status' to the `containerStatus` attribute
-  -- because attribute name can't start with an uppercase, we can't use DeriveAnyClass
-  parseJSON = genericParseJSON $ aesonPrefix pascalCase
+type Result a = Either Text a
 
-data Container
-  = Container
-      { containerId :: Text,
-        containerState :: ContainerState
-      }
-  deriving stock (Show, Generic)
+withClient :: MonadIO m => Text -> (PodmanClient -> m ()) -> m ()
+withClient url callback = do
+  man <- liftIO $ newManager tlsManagerSettings
+  callback (PodmanClient baseUrl' man)
+  where
+    baseUrl' = T.dropWhileEnd (== '/') url <> "/"
 
-instance FromJSON Container where
-  parseJSON = genericParseJSON $ aesonPrefix pascalCase
+podmanGet :: (MonadIO m, FromJSON a) => PodmanClient -> Text -> m (Result a)
+podmanGet client path = do
+  initRequest <- liftIO $ parseUrlThrow (T.unpack (baseUrl client <> path))
+  let request = initRequest {requestHeaders = [("Accept", "*/*")]}
+  response <- liftIO $ httpLbs request (manager client)
+  pure $ either (Left . T.pack . show) Right (eitherDecode (responseBody response))
 
--- | Read a container status
-inspectContainer ::
-  -- | The container name
-  String ->
-  -- | Returns the container status
-  IO (Maybe Container)
-inspectContainer name = do
-  podInspect <- pack . fromMaybe [] <$> cmdMaybe "podman" ["container", "inspect", name]
-  return $ case decode podInspect of
-    Just [container] -> Just container
-    _ -> Nothing
-
--- | Check if a container exists
-isContainer ::
-  -- | The container name
-  String ->
-  -- | Returns True is the container exists
-  IO Bool
-isContainer name = isJust <$> cmdMaybe "podman" ["container", "exists", name]
+getVersion :: MonadIO m => PodmanClient -> m (Result Version)
+getVersion = flip podmanGet "version"
