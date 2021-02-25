@@ -1,0 +1,32 @@
+{
+    "Platform": {
+        "Name": "linux/amd64/fedora-32"
+    },
+    "Components": [
+        {
+            "Name": "Podman Engine",
+            "Version": "3.1.0-dev",
+            "Details": {
+                "APIVersion": "3.0.0",
+                "Arch": "amd64",
+                "BuildTime": "2021-02-24T21:38:29Z",
+                "Experimental": "true",
+                "GitCommit": "1aa96ed2e233039cd7ec81418a3a2cf9cd46b33b",
+                "GoVersion": "go1.14.13",
+                "KernelVersion": "5.10.15-100.fc32.x86_64",
+                "MinAPIVersion": "3.0.0",
+                "Os": "linux"
+            }
+        }
+    ],
+    "Version": "3.1.0-dev",
+    "ApiVersion": "1.40",
+    "MinAPIVersion": "1.24",
+    "GitCommit": "1aa96ed2e233039cd7ec81418a3a2cf9cd46b33b",
+    "GoVersion": "go1.14.13",
+    "Os": "linux",
+    "Arch": "amd64",
+    "KernelVersion": "5.10.15-100.fc32.x86_64",
+    "Experimental": true,
+    "BuildTime": "2021-02-24T21:38:29Z"
+}
