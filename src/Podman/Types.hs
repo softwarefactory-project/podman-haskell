@@ -73,7 +73,7 @@ newtype FileMode = FileMode Word32
 data Error = Error
   { _errorcause :: Text,
     _errormessage :: Text,
-    _errorresponse :: Text
+    _errorresponse :: Int
   }
   deriving stock (Show, Eq, Generic)
 

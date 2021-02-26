@@ -1,0 +1,34 @@
+cabal-version:       2.4
+name:                podman-quickcheck
+synopsis:            A tool to quickcheck podman client
+version:             0.0.0.0
+license:             Apache-2.0
+category:            System
+build-type:          Simple
+tested-with:         GHC == 8.10.3
+
+executable podman-quickcheck
+  main-is:             QuickCheck.hs
+  ghc-options:         -Wall
+                       -Wcompat
+                       -Widentities
+                       -Wincomplete-uni-patterns
+                       -Wincomplete-record-updates
+                       -Wredundant-constraints
+                       -Wunused-imports
+  if impl(ghc >= 8.2)
+    ghc-options:       -fhide-source-paths
+  if impl(ghc >= 8.4)
+    ghc-options:       -Wmissing-export-lists
+                       -Wpartial-fields
+  if impl(ghc >= 8.8)
+    ghc-options:       -Wmissing-deriving-strategies
+  if impl(ghc >= 8.10)
+    ghc-options:       -Wunused-packages
+  default-language:    Haskell2010
+  build-depends:       base < 5
+                     , QuickCheck
+                     , generic-arbitrary
+                     , podman
+                     , quickcheck-text
+                     , text
