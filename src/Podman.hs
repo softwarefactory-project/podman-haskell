@@ -20,6 +20,10 @@ module Podman
     containerExists,
     containerInspect,
 
+    -- * Post API
+    containerCreate,
+    mkSpecGenerator,
+
     -- * Types
     Error (..),
     Version (..),
@@ -28,17 +32,22 @@ module Podman
 where
 
 import Control.Monad.IO.Class (MonadIO (..))
-import Data.Aeson (FromJSON, eitherDecodeStrict)
+import Data.Aeson (FromJSON, ToJSON, eitherDecodeStrict, encode)
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import Data.Void (Void)
 import Network.HTTP.Client
   ( Manager,
+    RequestBody (RequestBodyLBS),
     brConsume,
     checkResponse,
     defaultManagerSettings,
     managerRawConnection,
+    method,
     newManager,
     parseUrlThrow,
+    requestBody,
     requestHeaders,
     responseBody,
     responseStatus,
@@ -74,48 +83,61 @@ withClient url callback = do
     unixPath = T.unpack (T.drop (T.length unixPrefix - 1) url)
     (baseUrl', settings) =
       if T.isPrefixOf unixPrefix url
-        then ("http://localhost/", defaultManagerSettings {managerRawConnection = return $ openUnixSocket})
+        then ("http://localhost/", defaultManagerSettings {managerRawConnection = return openUnixSocket})
         else (T.dropWhileEnd (== '/') url <> "/", tlsManagerSettings)
     openUnixSocket _ _ _ = do
       s <- S.socket S.AF_UNIX S.Stream S.defaultProtocol
       S.connect s (S.SockAddrUnix unixPath)
       socketConnection s 8096
 
-podmanReq :: (MonadIO m, FromJSON a) => PodmanClient -> Text -> m (Result (Maybe a))
-podmanReq client path = do
+podmanReq :: (MonadIO m, ToJSON a, FromJSON b) => PodmanClient -> Text -> Maybe a -> Text -> m (Result (Maybe b))
+podmanReq client verb body path = do
   initRequest <- liftIO $ parseUrlThrow (T.unpack (baseUrl client <> path))
-  let request =
+  let request' =
         initRequest
-          { requestHeaders = [("Accept", "application/json")],
+          { method = T.encodeUtf8 verb,
+            requestHeaders = [("Accept", "application/json")],
             checkResponse = const . const $ pure ()
           }
+      request = case body of
+        Just x -> request' {requestBody = RequestBodyLBS $ encode x}
+        Nothing -> request'
   liftIO $
     withResponse request (manager client) $ \response -> do
       let Status code _ = responseStatus response
-      body <- mconcat <$> brConsume (responseBody response)
+      body' <- mconcat <$> brConsume (responseBody response)
       pure $
         if code < 400
           then
-            if body == mempty
+            if body' == mempty
               then Right Nothing
-              else case eitherDecodeStrict body of
+              else case eitherDecodeStrict body' of
                 Right x -> Right (Just x)
                 Left x -> error (show x)
-          else case eitherDecodeStrict body of
+          else case eitherDecodeStrict body' of
             Right err -> Left err
             Left x -> error (show x)
 
-podmanGet :: (MonadIO m, FromJSON a) => PodmanClient -> Text -> m (Result a)
-podmanGet client path = do
-  x <- podmanReq client path
+podmanExpect :: (MonadIO m, ToJSON a, FromJSON b) => PodmanClient -> Text -> Maybe a -> Text -> m (Result b)
+podmanExpect client verb body path = do
+  x <- podmanReq client verb body path
   pure $ case x of
     Left err -> Left err
     Right (Just y) -> Right y
     Right Nothing -> error "Empty response"
 
+noBody :: Maybe Void
+noBody = Nothing
+
+podmanGet :: (MonadIO m, FromJSON b) => PodmanClient -> Text -> m (Result b)
+podmanGet client = podmanExpect client "GET" noBody
+
+podmanPost :: (MonadIO m, ToJSON a, FromJSON b) => PodmanClient -> a -> Text -> m (Result b)
+podmanPost client body = podmanExpect client "POST" (Just body)
+
 podmanCheck :: MonadIO m => PodmanClient -> Text -> m (Maybe Error)
 podmanCheck client path = do
-  x <- podmanReq client path :: MonadIO m => m (Result (Maybe Error))
+  x <- podmanReq client "GET" noBody path :: MonadIO m => m (Result (Maybe Error))
   pure $ case x of
     Left err -> Just err
     Right Nothing -> Nothing
@@ -141,3 +163,7 @@ containerExists client name = do
 -- | Return low-level information about a container.
 containerInspect :: MonadIO m => PodmanClient -> Text -> Bool -> m (Result InspectContainerResponse)
 containerInspect client name size = podmanGet client ("v1/libpod/containers/" <> name <> "/json?size=" <> showB size)
+
+-- | Create a container
+containerCreate :: MonadIO m => PodmanClient -> SpecGenerator -> m (Result ContainerCreateResponse)
+containerCreate client = flip (podmanPost client) "v1/libpod/containers/create"
