@@ -23,6 +23,14 @@ source-repository head
   type:                git
   location:            https://github.com/softwarefactory-project/podman-haskell.git
 
+flag codegen
+  description:
+    Enable codegen dependencies
+  default:
+    False
+  manual:
+    True
+
 common common-options
   build-depends:       base                   < 5
                      , aeson                  >= 1.0.0.0  && < 1.6
@@ -60,6 +68,9 @@ library
   hs-source-dirs:      src
   exposed-modules:     Podman
                      , Podman.Types
+  if flag(codegen)
+    build-depends:     aeson, yaml, swagger2, insert-ordered-containers, mtl
+    other-modules:     Podman.Codegen
 
 test-suite podman-haskell-test
   import:              common-options
