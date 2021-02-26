@@ -19,6 +19,7 @@ module Podman
     getVersion,
     containerExists,
     containerInspect,
+    containerList,
 
     -- * Post API
     containerCreate,
@@ -163,6 +164,9 @@ containerExists client name = do
 -- | Return low-level information about a container.
 containerInspect :: MonadIO m => PodmanClient -> Text -> Bool -> m (Result InspectContainerResponse)
 containerInspect client name size = podmanGet client ("v1/libpod/containers/" <> name <> "/json?size=" <> showB size)
+
+containerList :: MonadIO m => PodmanClient -> m (Result [ListContainer])
+containerList client = podmanGet client "v1/libpod/containers/json"
 
 -- | Create a container
 containerCreate :: MonadIO m => PodmanClient -> SpecGenerator -> m (Result ContainerCreateResponse)

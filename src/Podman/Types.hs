@@ -15,6 +15,9 @@ module Podman.Types
     InspectContainerConfig (..),
     SpecGenerator (..),
     PortMapping (..),
+    ListContainer (..),
+    ListContainerNamespaces (..),
+    ContainerSize (..),
     Mount (..),
     Namespace (..),
     LinuxDevice (..),
@@ -24,6 +27,10 @@ module Podman.Types
     OverlayVolume (..),
     InspectContainerResponse (..),
     ContainerCreateResponse (..),
+
+    -- * Query
+    ContainerListQuery (..),
+    defaultContainerListQuery,
 
     -- * Smart Constructors
     mkSpecGenerator,
@@ -262,6 +269,72 @@ instance FromJSON PortMapping where
 instance ToJSON PortMapping where
   toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 12})
 
+-- | Listcontainer describes a container suitable for listing
+data ListContainer = ListContainer
+  { _listContainerPodName :: Text,
+    _listContainerStatus :: Text,
+    _listContainerState :: Text,
+    _listContainerCommand :: [Text],
+    _listContainerImage :: Text,
+    _listContainerSize :: Maybe ContainerSize,
+    _listContainerNetworks :: Maybe [Text],
+    _listContainerCreatedAt :: Text,
+    _listContainerIsInfra :: Bool,
+    _listContainerNamespaces :: ListContainerNamespaces,
+    _listContainerCreated :: UTCTime,
+    _listContainerStartedAt :: Int64,
+    _listContainerNames :: [Text],
+    _listContainerExitedAt :: Int64,
+    _listContainerPorts :: Maybe [PortMapping],
+    _listContainerImageID :: Text,
+    _listContainerPid :: Int64,
+    _listContainerId :: Text,
+    _listContainerLabels :: M.Map Text Text,
+    _listContainerExitCode :: Int32,
+    _listContainerPod :: Maybe Text,
+    _listContainerExited :: Bool,
+    _listContainerAutoRemove :: Bool
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON ListContainer where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 14})
+
+instance ToJSON ListContainer where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 14})
+
+-- | ListContainer Namespaces contains the identifiers of the container's Linux namespaces
+data ListContainerNamespaces = ListContainerNamespaces
+  { _listContainerNamespacesCgroup :: Maybe Text,
+    _listContainerNamespacesMnt :: Maybe Text,
+    _listContainerNamespacesNet :: Maybe Text,
+    _listContainerNamespacesIpc :: Maybe Text,
+    _listContainerNamespacesUser :: Maybe Text,
+    _listContainerNamespacesUts :: Maybe Text,
+    _listContainerNamespacesPidns :: Maybe Text
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON ListContainerNamespaces where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 24})
+
+instance ToJSON ListContainerNamespaces where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 24})
+
+-- | ContainerSize holds the size of the container's root filesystem and top
+-- read-write layer.
+data ContainerSize = ContainerSize
+  { _containerSizerwSize :: Int64,
+    _containerSizerootFsSize :: Int64
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON ContainerSize where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 14})
+
+instance ToJSON ContainerSize where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 14})
+
 data Mount = Mount
   { _mountdestination :: Text,
     _mountsource :: Text,
@@ -421,6 +494,25 @@ instance FromJSON ContainerCreateResponse where
 
 instance ToJSON ContainerCreateResponse where
   toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 24})
+
+-- | libpodListContainers parameters
+data ContainerListQuery = ContainerListQuery
+  { _containerListQueryall :: Maybe Bool,
+    _containerListQuerylimit :: Maybe Int,
+    _containerListQuerysize :: Maybe Bool,
+    _containerListQuerysync :: Maybe Bool,
+    _containerListQueryfilters :: Maybe Text
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON ContainerListQuery where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 19})
+
+instance ToJSON ContainerListQuery where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 19})
+
+defaultContainerListQuery :: ContainerListQuery
+defaultContainerListQuery = ContainerListQuery Nothing Nothing Nothing Nothing Nothing
 
 -- | Creates a SpecGenerator by setting all the optional attributes to Nothing
 mkSpecGenerator :: Text -> SpecGenerator
