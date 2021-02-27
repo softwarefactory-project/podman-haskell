@@ -20,17 +20,18 @@ module Podman.Api
     containerCreate,
     mkSpecGenerator,
     containerDelete,
+    containerKill,
   )
 where
 
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.Text (Text)
-import Podman.Client (Path (..), PodmanClient, QueryValue (..), Result, podmanCheck, podmanDelete, podmanGet, podmanPost)
+import Podman.Client
 import Podman.Types
 
 -- | Returns the Component Version information
 getVersion :: MonadIO m => PodmanClient -> m (Result Version)
-getVersion client = podmanGet client (Path "version") mempty
+getVersion client = withResult <$> podmanGet client (Path "version") mempty
 
 newtype ContainerName = ContainerName Text
   deriving stock (Show, Eq)
@@ -44,7 +45,7 @@ containerExists ::
   ContainerName ->
   m Bool
 containerExists client (ContainerName name) = do
-  resp <- podmanCheck client (Path ("v1/libpod/containers/" <> name <> "/exists")) mempty
+  resp <- withoutResult <$> podmanGet client (Path ("v1/libpod/containers/" <> name <> "/exists")) mempty
   pure $ case resp of
     Just _ -> False
     Nothing -> True
@@ -60,7 +61,7 @@ containerInspect ::
   Bool ->
   m (Result InspectContainerResponse)
 containerInspect client (ContainerName name) size =
-  podmanGet client (Path ("v1/libpod/containers/" <> name <> "/json")) [("size", Just (QBool size))]
+  withResult <$> podmanGet client (Path ("v1/libpod/containers/" <> name <> "/json")) [("size", Just (QBool size))]
 
 -- | Returns a list of containers
 containerList ::
@@ -71,7 +72,7 @@ containerList ::
   ContainerListQuery ->
   m (Result [ListContainer])
 containerList client ContainerListQuery {..} = do
-  podmanGet client (Path "v1/libpod/containers/json") qs
+  withResult <$> podmanGet client (Path "v1/libpod/containers/json") qs
   where
     qs =
       [ ("all", QBool <$> _containerListQueryall),
@@ -83,7 +84,22 @@ containerList client ContainerListQuery {..} = do
 
 -- | Create a container
 containerCreate :: MonadIO m => PodmanClient -> SpecGenerator -> m (Result ContainerCreateResponse)
-containerCreate client spec = podmanPost client spec (Path "v1/libpod/containers/create") mempty
+containerCreate client spec = withResult <$> podmanPost client spec (Path "v1/libpod/containers/create") mempty
+
+-- | Ssend a signal to a container, defaults to killing the container
+containerKill ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The container name
+  ContainerName ->
+  -- | Signal to be sent to container, (default "TERM")
+  Maybe Text ->
+  m (Maybe Error)
+containerKill client (ContainerName name) signal =
+  withoutResult <$> podmanPost client emptyBody (Path ("v1/libpod/containers/" <> name <> "/kill")) qs
+  where
+    qs = [("signal", QText <$> signal)]
 
 -- | Delete container
 containerDelete ::
@@ -98,6 +114,6 @@ containerDelete ::
   Maybe Bool ->
   m (Maybe Error)
 containerDelete client (ContainerName name) force volume =
-  podmanDelete client (Path ("v1/libpod/containers/" <> name)) qs
+  withoutResult <$> podmanDelete client (Path ("v1/libpod/containers/" <> name)) qs
   where
     qs = [("force", QBool <$> force), ("v", QBool <$> volume)]
