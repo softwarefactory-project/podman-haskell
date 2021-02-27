@@ -15,11 +15,7 @@ module Podman
     PodmanClient,
     withClient,
     Result,
-
-    -- * Api
     module Podman.Api,
-
-    -- * Types
     module Podman.Types,
   )
 where

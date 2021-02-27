@@ -9,7 +9,8 @@
 --
 -- Podman API
 module Podman.Api
-  ( getVersion,
+  ( -- * Server
+    getVersion,
 
     -- * Container
     ContainerName (..),

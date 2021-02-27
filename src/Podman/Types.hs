@@ -4,7 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Podman.Types
-  ( -- * Types
+  ( -- * Responses
     LinuxCapability (..),
     IP (..),
     Signal (..),
@@ -28,7 +28,7 @@ module Podman.Types
     InspectContainerResponse (..),
     ContainerCreateResponse (..),
 
-    -- * Query
+    -- * Queries
     ContainerListQuery (..),
     defaultContainerListQuery,
 
@@ -55,21 +55,25 @@ instance ToJSON LinuxCapability where
 instance FromJSON LinuxCapability where
   parseJSON = withText "cap" $ \txt -> pure (LinuxCapability (read (T.unpack txt)))
 
+-- | A type safe wrapper for [Word8]
 newtype IP = IP [Word8]
   deriving stock (Generic)
   deriving newtype (Eq, Show)
   deriving anyclass (FromJSON, ToJSON)
 
+-- | A type safe wrapper for Int64
 newtype Signal = Signal Int64
   deriving stock (Generic)
   deriving newtype (Eq, Show)
   deriving anyclass (FromJSON, ToJSON)
 
+-- | A type safe wrapper for Word32
 newtype FileMode = FileMode Word32
   deriving stock (Generic)
   deriving newtype (Eq, Show)
   deriving anyclass (FromJSON, ToJSON)
 
+-- | The API error record
 data Error = Error
   { _errorcause :: Text,
     _errormessage :: Text,
@@ -83,6 +87,7 @@ instance FromJSON Error where
 instance ToJSON Error where
   toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 6})
 
+-- | The API Version information
 data Version = Version
   { _versionApiVersion :: Text,
     _versionVersion :: Text
@@ -126,26 +131,47 @@ instance ToJSON InspectContainerState where
 -- | InspectContainerConfig holds further data about how a container was initially
 -- configured.
 data InspectContainerConfig = InspectContainerConfig
-  { _inspectContainerConfigAnnotations :: M.Map Text Text,
+  { -- | Container annotations.
+    _inspectContainerConfigAnnotations :: M.Map Text Text,
+    -- | Container hostname.
     _inspectContainerConfigHostname :: Text,
+    -- | Container image.
     _inspectContainerConfigImage :: Text,
+    -- | SystemdMode is whether the container is running in systemd mode.
     _inspectContainerConfigSystemdMode :: Maybe Bool,
+    -- | Container environment variables.
     _inspectContainerConfigEnv :: [Text],
+    -- | Container entrypoint.
     _inspectContainerConfigEntrypoint :: Text,
+    -- | Whether STDIN is only left open once.
     _inspectContainerConfigStdinOnce :: Bool,
+    -- | Container working directory.
     _inspectContainerConfigWorkingDir :: Text,
+    -- | Container stop signal.
     _inspectContainerConfigStopSignal :: Word64,
+    -- | Umask is the umask inside the container.
     _inspectContainerConfigUmask :: Text,
+    -- | User the container was launched with.
     _inspectContainerConfigUser :: Text,
+    -- | On-build arguments - presently unused.
     _inspectContainerConfigOnBuild :: Maybe Text,
+    -- | Container domain name - unused at present.
     _inspectContainerConfigDomainname :: Text,
+    -- | Unused, at present.
     _inspectContainerConfigAttachStdin :: Bool,
+    -- | Container command.
     _inspectContainerConfigCmd :: [Text],
+    -- | Container labels.
     _inspectContainerConfigLabels :: M.Map Text Text,
+    -- | Unused, at present.
     _inspectContainerConfigAttachStderr :: Bool,
+    -- | Whether the container leaves STDIN open.
     _inspectContainerConfigOpenStdin :: Bool,
+    -- | CreateCommand is the full command plus arguments of the process the container has been created with.
     _inspectContainerConfigCreateCommand :: [Text],
+    -- | Unused, at present.
     _inspectContainerConfigAttachStdout :: Bool,
+    -- | Whether the container creates a TTY.
     _inspectContainerConfigTty :: Bool
   }
   deriving stock (Show, Eq, Generic)
@@ -159,91 +185,167 @@ instance ToJSON InspectContainerConfig where
 -- | SpecGenerator creates an OCI spec and Libpod configuration options to create
 -- a container based on the given configuration.
 data SpecGenerator = SpecGenerator
-  { _specGeneratorstop_timeout :: Maybe Word64,
+  { -- | StopTimeout is a timeout between the container's stop signal being sent and SIGKILL being sent.
+    _specGeneratorstop_timeout :: Maybe Word64,
+    -- | IO write rate limit per cgroup per device, bytes per second.
     _specGeneratorthrottleWriteBpsDevice :: Maybe (M.Map Text Text),
+    -- | Annotations are key-value options passed into the container runtime that can be used to trigger special behavior.
     _specGeneratorannotations :: Maybe (M.Map Text Text),
+    -- | RawImageName is the user-specified and unprocessed input referring to a local or a remote image.
     _specGeneratorraw_image_name :: Maybe Text,
+    -- | CapAdd are capabilities which will be added to the container.
     _specGeneratorcap_add :: Maybe [LinuxCapability],
     _specGeneratoruserns :: Maybe Namespace,
+    -- | PublishExposedPorts will publish ports specified in the image to random unused ports (guaranteed to be above 1024) on the host.
     _specGeneratorpublish_image_ports :: Maybe Bool,
+    -- | Stdin is whether the container will keep its STDIN open.
     _specGeneratorstdin :: Maybe Bool,
+    -- | Groups are a list of supplemental groups the container's user will be granted access to.
     _specGeneratorgroups :: Maybe [Text],
     _specGeneratoripcns :: Maybe Namespace,
+    -- | Unmask is the path we want to unmask in the container.
     _specGeneratorunmask :: Maybe [Text],
+    -- | UseImageHosts indicates that \/etc\/hosts should not be managed by Podman, and instead sourced from the image.
     _specGeneratoruse_image_hosts :: Maybe Bool,
+    -- | Determine how to handle the NOTIFY_SOCKET - do we participate or pass it through "container" - let the OCI runtime deal with it, advertise conmon's MAINPID "conmon-only" - advertise conmon's MAINPID, send READY when started, don't pass to OCI "ignore" - unset NOTIFY_SOCKET.
     _specGeneratorsdnotifyMode :: Maybe Text,
+    -- | Image is the image the container will be based on.
     _specGeneratorimage :: Text,
+    -- | Command is the container's command.
     _specGeneratorcommand :: Maybe [Text],
+    -- | SelinuxProcessLabel is the process label the container will use.
     _specGeneratorselinux_opts :: Maybe [Text],
+    -- | Hostname is the container's hostname.
     _specGeneratorhostname :: Maybe Text,
+    -- | VolumesFrom is a set of containers whose volumes will be added to this container.
     _specGeneratorvolumes_from :: Maybe [Text],
+    -- | Init specifies that an init binary will be mounted into the container, and will be used as PID1.
     _specGeneratorinit :: Maybe Bool,
+    -- | RootfsPropagation is the rootfs propagation mode for the container.
     _specGeneratorrootfs_propagation :: Maybe Text,
+    -- | OOMScoreAdj adjusts the score used by the OOM killer to determine processes to kill for the container's process.
     _specGeneratoroom_score_adj :: Maybe Int64,
     _specGeneratornetns :: Maybe Namespace,
+    -- | DNSOptions is a set of DNS options that will be used in the container's resolv.
     _specGeneratordns_option :: Maybe [Text],
+    -- | Secrets are the secrets that will be added to the container Optional.
     _specGeneratorsecrets :: Maybe [Text],
+    -- | Env is a set of environment variables that will be set in the container.
     _specGeneratorenv :: Maybe (M.Map Text Text),
+    -- | Entrypoint is the container's entrypoint.
     _specGeneratorentrypoint :: Maybe [Text],
+    -- | Aliases are a list of network-scoped aliases for container Optional.
     _specGeneratoraliases :: Maybe (M.Map Text Text),
+    -- | Weight per cgroup per device, can override BlkioWeight.
     _specGeneratorweightDevice :: Maybe (M.Map Text Text),
+    -- | RestartPolicy is the container's restart policy - an action which will be taken when the container exits.
     _specGeneratorrestart_policy :: Maybe Text,
+    -- | Rootfs is the path to a directory that will be used as the container's root filesystem.
     _specGeneratorrootfs :: Maybe Text,
+    -- | UseImageResolvConf indicates that resolv.
     _specGeneratoruse_image_resolve_conf :: Maybe Bool,
+    -- | SeccompPolicy determines which seccomp profile gets applied the container.
     _specGeneratorseccomp_policy :: Maybe Text,
+    -- | Privileged is whether the container is privileged.
     _specGeneratorprivileged :: Maybe Bool,
+    -- | Namespace is the libpod namespace the container will be placed in.
     _specGeneratornamespace :: Maybe Text,
+    -- | DNSServers is a set of DNS servers that will be used in the container's resolv.
     _specGeneratordns_server :: Maybe [IP],
+    -- | PortBindings is a set of ports to map into the container.
     _specGeneratorportmappings :: Maybe [PortMapping],
+    -- | ApparmorProfile is the name of the Apparmor profile the container will use.
     _specGeneratorapparmor_profile :: Maybe Text,
     _specGeneratorstatic_ip :: Maybe IP,
+    -- | Remove indicates if the container should be removed once it has been started and exits.
     _specGeneratorremove :: Maybe Bool,
+    -- | Mounts are mounts that will be added to the container.
     _specGeneratormounts :: Maybe [Mount],
     _specGeneratorstatic_ipv6 :: Maybe IP,
     _specGeneratorcgroupns :: Maybe Namespace,
+    -- | NetworkOptions are additional options for each network Optional.
     _specGeneratornetwork_options :: Maybe (M.Map Text Text),
+    -- | NoNewPrivileges is whether the container will set the no new privileges flag on create, which disables gaining additional privileges (e.
     _specGeneratorno_new_privileges :: Maybe Bool,
+    -- | Umask is the umask the init process of the container will be run with.
     _specGeneratorumask :: Maybe Text,
+    -- | Systemd is whether the container will be started in systemd mode.
     _specGeneratorsystemd :: Maybe Text,
     _specGeneratorstop_signal :: Maybe Signal,
+    -- | User is the user the container will be run as.
     _specGeneratoruser :: Maybe Text,
+    -- | CgroupConf are key-value options passed into the container runtime that are used to configure cgroup v2.
     _specGeneratorunified :: Maybe (M.Map Text Text),
+    -- | EnvHTTPProxy indicates that the http host proxy environment variables should be added to container Optional.
     _specGeneratorhttpproxy :: Maybe Bool,
+    -- | CapDrop are capabilities which will be removed from the container.
     _specGeneratorcap_drop :: Maybe [LinuxCapability],
+    -- | ContainerCreateCommand is the command that was used to create this container.
     _specGeneratorcontainerCreateCommand :: Maybe [Text],
+    -- | Terminal is whether the container will create a PTY.
     _specGeneratorterminal :: Maybe Bool,
+    -- | ProcOpts are the options used for the proc mount.
     _specGeneratorprocfs_opts :: Maybe [Text],
+    -- | ImageVolumeMode indicates how image volumes will be created.
     _specGeneratorimage_volume_mode :: Maybe Text,
+    -- | Mask is the path we want to mask in the container.
     _specGeneratormask :: Maybe [Text],
+    -- | ShmSize is the size of the tmpfs to mount in at \/dev\/shm, in bytes.
     _specGeneratorshm_size :: Maybe Int64,
+    -- | Expose is a number of ports that will be forwarded to the container if PublishExposedPorts is set.
     _specGeneratorexpose :: Maybe (M.Map Word Text),
     _specGeneratorutsns :: Maybe Namespace,
+    -- | Name is the name the container will be given.
     _specGeneratorname :: Maybe Text,
+    -- | IO read rate limit per cgroup per device, IO per second.
     _specGeneratorthrottleReadIOPSDevice :: Maybe (M.Map Text Text),
+    -- | CgroupParent is the container's CGroup parent.
     _specGeneratorcgroup_parent :: Maybe Text,
+    -- | SeccompProfilePath is the path to a JSON file containing the container's Seccomp profile.
     _specGeneratorseccomp_profile_path :: Maybe Text,
+    -- | EnvHost indicates that the host environment should be added to container Optional.
     _specGeneratorenv_host :: Maybe Bool,
+    -- | Sysctl sets kernel parameters for the container.
     _specGeneratorsysctl :: Maybe (M.Map Text Text),
+    -- | ConmonPidFile is a path at which a PID file for Conmon will be placed.
     _specGeneratorconmon_pid_file :: Maybe Text,
+    -- | Labels are key-value pairs that are used to add metadata to containers.
     _specGeneratorlabels :: Maybe (M.Map Text Text),
+    -- | ReadOnlyFilesystem indicates that everything will be mounted as read-only.
     _specGeneratorread_only_filesystem :: Maybe Bool,
     _specGeneratorpidns :: Maybe Namespace,
+    -- | IO write rate limit per cgroup per device, IO per second.
     _specGeneratorthrottleWriteIOPSDevice :: Maybe (M.Map Text Text),
+    -- | DNSSearch is a set of DNS search domains that will be used in the container's resolv.
     _specGeneratordns_search :: Maybe [Text],
+    -- | InitPath specifies the path to the init binary that will be added if Init is specified above.
     _specGeneratorinit_path :: Maybe Text,
+    -- | Pod is the ID of the pod the container will join.
     _specGeneratorpod :: Maybe Text,
+    -- | Devices are devices that will be added to the container.
     _specGeneratordevices :: Maybe [LinuxDevice],
+    -- | IO read rate limit per cgroup per device, bytes per second.
     _specGeneratorthrottleReadBpsDevice :: Maybe (M.Map Text Text),
+    -- | CgroupsMode sets a policy for how cgroups will be created in the container, including the ability to disable creation entirely.
     _specGeneratorcgroups_mode :: Maybe Text,
+    -- | Timezone is the timezone inside the container.
     _specGeneratortimezone :: Maybe Text,
+    -- | Volumes are named volumes that will be added to the container.
     _specGeneratorvolumes :: Maybe [NamedVolume],
+    -- | Image volumes bind-mount a container-image mount into the container.
     _specGeneratorimage_volumes :: Maybe [ImageVolume],
     _specGeneratorlog_configuration :: Maybe LogConfig,
+    -- | OCIRuntime is the name of the OCI runtime that will be used to create the container.
     _specGeneratoroci_runtime :: Maybe Text,
+    -- | Overlay volumes are named volumes that will be added to the container.
     _specGeneratoroverlay_volumes :: Maybe [OverlayVolume],
+    -- | CNINetworks is a list of CNI networks to join the container to.
     _specGeneratorcni_networks :: Maybe [Text],
+    -- | RestartRetries is the number of attempts that will be made to restart the container.
     _specGeneratorrestart_tries :: Maybe Word64,
+    -- | WorkDir is the container's working directory.
     _specGeneratorwork_dir :: Maybe Text,
+    -- | HostAdd is a set of hosts which will be added to the container's etc\/hosts file.
     _specGeneratorhostadd :: Maybe [Text]
   }
   deriving stock (Show, Eq, Generic)
@@ -254,11 +356,17 @@ instance FromJSON SpecGenerator where
 instance ToJSON SpecGenerator where
   toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 14})
 
+-- | PortMapping is one or more ports that will be mapped into the container.
 data PortMapping = PortMapping
-  { _portMappinghost_port :: Word16,
+  { -- | HostPort is the port number that will be forwarded from the host into the container.
+    _portMappinghost_port :: Word16,
+    -- | Protocol is the protocol forward.
     _portMappingprotocol :: Text,
+    -- | ContainerPort is the port number that will be exposed from the container.
     _portMappingcontainer_port :: Word16,
+    -- | Range is the number of ports that will be forwarded, starting at HostPort and ContainerPort and counting up.
     _portMappingrange :: Word16,
+    -- | HostIP is the IP that we will bind to on the host.
     _portMappinghost_ip :: Text
   }
   deriving stock (Show, Eq, Generic)
@@ -271,28 +379,49 @@ instance ToJSON PortMapping where
 
 -- | Listcontainer describes a container suitable for listing
 data ListContainer = ListContainer
-  { _listContainerPodName :: Text,
+  { -- | If the container is part of Pod, the Pod name.
+    _listContainerPodName :: Text,
+    -- | Status is a human-readable approximation of a duration for json output.
     _listContainerStatus :: Text,
+    -- | State of container.
     _listContainerState :: Text,
+    -- | Container command.
     _listContainerCommand :: [Text],
+    -- | Container image.
     _listContainerImage :: Text,
     _listContainerSize :: Maybe ContainerSize,
+    -- | The network names assigned to the container.
     _listContainerNetworks :: Maybe [Text],
+    -- | Human readable container creation time.
     _listContainerCreatedAt :: Text,
+    -- | If this container is a Pod infra container.
     _listContainerIsInfra :: Bool,
     _listContainerNamespaces :: ListContainerNamespaces,
+    -- | Container creation time.
     _listContainerCreated :: UTCTime,
+    -- | Time when container started.
     _listContainerStartedAt :: Int64,
+    -- | The names assigned to the container.
     _listContainerNames :: [Text],
+    -- | Time container exited.
     _listContainerExitedAt :: Int64,
+    -- | Port mappings.
     _listContainerPorts :: Maybe [PortMapping],
+    -- | Container image ID.
     _listContainerImageID :: Text,
+    -- | The process id of the container.
     _listContainerPid :: Int64,
+    -- | The unique identifier for the container.
     _listContainerId :: Text,
+    -- | Labels for container.
     _listContainerLabels :: M.Map Text Text,
+    -- | If container has exited, the return code from the command.
     _listContainerExitCode :: Int32,
+    -- | If the container is part of Pod, the Pod ID.
     _listContainerPod :: Maybe Text,
+    -- | If container has exited\/stopped.
     _listContainerExited :: Bool,
+    -- | AutoRemove.
     _listContainerAutoRemove :: Bool
   }
   deriving stock (Show, Eq, Generic)
@@ -305,12 +434,19 @@ instance ToJSON ListContainer where
 
 -- | ListContainer Namespaces contains the identifiers of the container's Linux namespaces
 data ListContainerNamespaces = ListContainerNamespaces
-  { _listContainerNamespacesCgroup :: Maybe Text,
+  { -- | Cgroup namespace.
+    _listContainerNamespacesCgroup :: Maybe Text,
+    -- | Mount namespace.
     _listContainerNamespacesMnt :: Maybe Text,
+    -- | Network namespace.
     _listContainerNamespacesNet :: Maybe Text,
+    -- | IPC namespace.
     _listContainerNamespacesIpc :: Maybe Text,
+    -- | User namespace.
     _listContainerNamespacesUser :: Maybe Text,
+    -- | UTS namespace.
     _listContainerNamespacesUts :: Maybe Text,
+    -- | PID namespace.
     _listContainerNamespacesPidns :: Maybe Text
   }
   deriving stock (Show, Eq, Generic)
@@ -335,10 +471,15 @@ instance FromJSON ContainerSize where
 instance ToJSON ContainerSize where
   toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 14})
 
+-- | Mount specifies a mount for a container.
 data Mount = Mount
-  { _mountdestination :: Text,
+  { -- | Destination is the absolute path where the mount will be placed in the container.
+    _mountdestination :: Text,
+    -- | Source specifies the source path of the mount.
     _mountsource :: Text,
+    -- | Options are fstab style mount options.
     _mountoptions :: [Text],
+    -- | Type specifies the mount kind.
     _mounttype :: Text
   }
   deriving stock (Show, Eq, Generic)
@@ -364,12 +505,18 @@ instance ToJSON Namespace where
 
 -- | LinuxDevice represents the mknod information for a Linux special device file
 data LinuxDevice = LinuxDevice
-  { _linuxDeviceminor :: Int64,
+  { -- | Minor is the device's minor number.
+    _linuxDeviceminor :: Int64,
+    -- | Path to the device.
     _linuxDevicepath :: Text,
     _linuxDevicefileMode :: FileMode,
+    -- | UID of the device.
     _linuxDeviceuid :: Word32,
+    -- | Major is the device's major number.
     _linuxDevicemajor :: Int64,
+    -- | Gid of the device.
     _linuxDevicegid :: Word32,
+    -- | Device type, block, char, etc.
     _linuxDevicetype :: Text
   }
   deriving stock (Show, Eq, Generic)
@@ -383,8 +530,11 @@ instance ToJSON LinuxDevice where
 -- | NamedVolume holds information about a named volume that will be mounted into
 -- the container.
 data NamedVolume = NamedVolume
-  { _namedVolumeDest :: Text,
+  { -- | Destination to mount the named volume within the container.
+    _namedVolumeDest :: Text,
+    -- | Name is the name of the named volume to be mounted.
     _namedVolumeName :: Text,
+    -- | Options are options that the named volume will be mounted with.
     _namedVolumeOptions :: [Text]
   }
   deriving stock (Show, Eq, Generic)
@@ -399,8 +549,11 @@ instance ToJSON NamedVolume where
 -- first mounted on the host and is then bind-mounted into the container.  An
 -- ImageVolume is always mounted read only.
 data ImageVolume = ImageVolume
-  { _imageVolumeDestination :: Text,
+  { -- | Destination is the absolute path of the mount in the container.
+    _imageVolumeDestination :: Text,
+    -- | ReadWrite sets the volume writable.
     _imageVolumeReadWrite :: Bool,
+    -- | Source is the source of the image volume.
     _imageVolumeSource :: Text
   }
   deriving stock (Show, Eq, Generic)
@@ -413,9 +566,13 @@ instance ToJSON ImageVolume where
 
 -- | LogConfig describes the logging characteristics for a container
 data LogConfig = LogConfig
-  { _logConfigpath :: Text,
+  { -- | LogPath is the path the container's logs will be stored at.
+    _logConfigpath :: Text,
+    -- | Size is the maximum size of the log file Optional.
     _logConfigsize :: Int64,
+    -- | LogDriver is the container's log driver.
     _logConfigdriver :: Text,
+    -- | A set of options to accompany the log driver.
     _logConfigoptions :: M.Map Text Text
   }
   deriving stock (Show, Eq, Generic)
@@ -429,8 +586,11 @@ instance ToJSON LogConfig where
 -- | OverlayVolume holds information about a overlay volume that will be mounted into
 -- the container.
 data OverlayVolume = OverlayVolume
-  { _overlayVolumedestination :: Text,
+  { -- | Destination is the absolute path where the mount will be placed in the container.
+    _overlayVolumedestination :: Text,
+    -- | Source specifies the source path of the mount.
     _overlayVolumesource :: Text,
+    -- | Options holds overlay volume options.
     _overlayVolumeoptions :: [Text]
   }
   deriving stock (Show, Eq, Generic)
@@ -484,7 +644,9 @@ instance ToJSON InspectContainerResponse where
   toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 25})
 
 data ContainerCreateResponse = ContainerCreateResponse
-  { _containerCreateResponseWarnings :: [Text],
+  { -- | Warnings during container creation.
+    _containerCreateResponseWarnings :: [Text],
+    -- | ID of the container created.
     _containerCreateResponseId :: Text
   }
   deriving stock (Show, Eq, Generic)
@@ -495,12 +657,17 @@ instance FromJSON ContainerCreateResponse where
 instance ToJSON ContainerCreateResponse where
   toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 24})
 
--- | libpodListContainers parameters
+-- | List containers parameters
 data ContainerListQuery = ContainerListQuery
-  { _containerListQueryall :: Maybe Bool,
+  { -- | Return all containers.
+    _containerListQueryall :: Maybe Bool,
+    -- | Return this number of most recently created containers, including non-running ones.
     _containerListQuerylimit :: Maybe Int,
+    -- | Return the size of container as fields SizeRw and SizeRootFs.
     _containerListQuerysize :: Maybe Bool,
+    -- | Sync container state with OCI runtime.
     _containerListQuerysync :: Maybe Bool,
+    -- | A JSON encoded value of the filters (a `map[string][]string`) to process on the containers list.
     _containerListQueryfilters :: Maybe Text
   }
   deriving stock (Show, Eq, Generic)
@@ -511,9 +678,13 @@ instance FromJSON ContainerListQuery where
 instance ToJSON ContainerListQuery where
   toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 19})
 
+-- | An empty 'ContainerListQuery'
 defaultContainerListQuery :: ContainerListQuery
 defaultContainerListQuery = ContainerListQuery Nothing Nothing Nothing Nothing Nothing
 
--- | Creates a SpecGenerator by setting all the optional attributes to Nothing
-mkSpecGenerator :: Text -> SpecGenerator
+-- | Creates a 'SpecGenerator' by setting all the optional attributes to Nothing
+mkSpecGenerator ::
+  -- | image
+  Text ->
+  SpecGenerator
 mkSpecGenerator image = SpecGenerator Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing image Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing

@@ -11,6 +11,7 @@
 -- runhaskell podman-codegen/Main.hs | ormolu > src/Podman/Types.hs && hlint --refactor --refactor-options=-i src/Podman/Types.hs
 module Main (main) where
 
+import Control.Applicative ((<|>))
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Writer
@@ -73,6 +74,11 @@ queryTypes = [("/libpod/containers/json", "ContainerListQuery", _pathItemGet)]
 adaptName :: TypeName -> TypeName
 adaptName "LibpodInspectContainerResponse" = "InspectContainerResponse"
 adaptName x = x
+
+hardcodedDoc :: TypeName -> Maybe Text
+hardcodedDoc "Error" = Just "The API error record"
+hardcodedDoc "Version" = Just "The API Version information"
+hardcodedDoc _ = Nothing
 
 hardcodedTypes :: TypeName -> AttrName -> Maybe Text
 hardcodedTypes "specGenerator" aname = case aname of
@@ -208,17 +214,22 @@ renderAttributeType tname aname ps
       s' -> error ("Unknown schema: " <> show s' <> " from " <> show tname)
 
 -- | Build an haskell (attribute :: type) definition
-renderAttribute :: TypeName -> AttrName -> Either Reference (ParamSchema t) -> Builder ()
-renderAttribute tname name schemaE
+renderAttribute :: TypeName -> Maybe Text -> AttrName -> Either Reference (ParamSchema t) -> Builder ()
+renderAttribute tname desc name schemaE
   | skipTypes tname name = pure ()
   | otherwise = do
     attrCount' <- getCount
     let prefix' = case attrCount' of
           0 -> "   "
           _ -> " , "
+    attributeDoc
     line (" " <> prefix' <> "_" <> tname <> T.dropWhile (== '_') name <> " :: " <> attributeType)
     incCount
   where
+    attributeDoc = case desc of
+      Just desc -> line (" -- | " <> toHaddock desc <> ".")
+      Nothing -> pure ()
+    toHaddock = T.replace "\n" " " . T.replace "/" "\\/" . T.takeWhile (/= '.')
     attributeType = if isOptional tname name then "Maybe (" <> attributeType' <> ")" else attributeType'
     attributeType' = flip fromMaybe (hardcodedTypes tname name) $ case schemaE of
       Left ref -> getReference ref
@@ -261,27 +272,29 @@ renderData name desc = do
 renderSchema :: Name -> Schema -> Builder ()
 renderSchema name Schema {..} =
   do
-    renderData name _schemaDescription
-    mapM_ (uncurry $ renderAttribute (lowerName name)) (M.toList (toEither <$> _schemaProperties))
+    renderData name (hardcodedDoc name <|> _schemaDescription <|> _schemaTitle)
+    mapM_ renderAttribute' (M.toList (toEither <$> _schemaProperties))
     renderDeriving name
   where
+    renderAttribute' (aname, (desc, e)) = renderAttribute (lowerName name) desc aname e
     -- toEither :: Referenced Schema -> Either Reference (ParamSchema t)
-    toEither (Ref r) = Left r
-    toEither (Inline Schema {..}) = Right _schemaParamSchema
+    toEither (Ref r) = (Nothing, Left r)
+    toEither (Inline Schema {..}) = (_schemaDescription, Right _schemaParamSchema)
 
 renderQuery :: Name -> Operation -> Builder ()
 renderQuery name Operation {..} =
   do
-    renderData name (flip mappend " parameters" <$> _operationOperationId)
+    renderData name (flip mappend " parameters" <$> (_operationSummary <|> _operationOperationId))
     mapM_ renderPathAttribute _operationParameters
     renderDeriving name
+    line $ "-- | An empty '" <> name <> "'"
     line $ "default" <> name <> " :: " <> name
     line $ "default" <> name <> " = " <> name <> " " <> T.intercalate " " (replicate 5 "Nothing")
     line ""
   where
     renderPathAttribute :: Referenced Param -> Builder ()
     renderPathAttribute (Ref _x) = error "Invalid ref"
-    renderPathAttribute (Inline p) = renderAttribute (lowerName name) (_paramName p) (schemaOf (_paramSchema p))
+    renderPathAttribute (Inline (Param {..})) = renderAttribute (lowerName name) _paramDescription _paramName (schemaOf _paramSchema)
     --    schemaOf :: ParamAnySchema -> Either Reference (ParamSchema t)
     schemaOf (ParamBody _rs) = error "oops"
     schemaOf (ParamOther ParamOtherSchema {..}) = Right _paramOtherSchemaParamSchema
@@ -289,8 +302,9 @@ renderQuery name Operation {..} =
 renderCtor :: Name -> Schema -> Builder ()
 renderCtor name _ =
   do
-    line $ "-- | Creates a " <> name <> " by setting all the optional attributes to Nothing"
-    line $ "mk" <> name <> " :: " <> T.intercalate " -> " requiredTypes <> " -> " <> name
+    line $ "-- | Creates a '" <> name <> "' by setting all the optional attributes to Nothing"
+    line $ "mk" <> name <> " ::"
+    line $ "  " <> T.intercalate " ->\n  " requiredTypes <> "\n -> " <> name
     line $ "mk" <> name <> " " <> T.intercalate " " (map T.toLower requiredNames) <> " = " <> impl
   where
     -- TODO: generate that list from the schema
@@ -298,12 +312,13 @@ renderCtor name _ =
     getValues Nothing = "Nothing"
     getValues (Just (x, _)) = x
     requiredItems = catMaybes typeItems
-    requiredTypes = map snd requiredItems
+    requiredTypes = map (\(name, typeName) -> "-- | " <> name <> "\n  " <> typeName) requiredItems
     requiredNames = map fst requiredItems
     impl = name <> " " <> T.intercalate " " (map getValues typeItems)
 
 renderNewType :: (Name, Text) -> Builder ()
 renderNewType (name, typeValue) = do
+  line $ "-- | A type safe wrapper for " <> typeValue
   line $ "newtype " <> name <> " = " <> name <> " " <> typeValue
   line "  deriving stock (Generic)"
   line "  deriving newtype (Eq, Show)"
@@ -323,9 +338,9 @@ renderTypes Swagger {..} = go
       line "{-# LANGUAGE DeriveGeneric, DeriveAnyClass, DerivingStrategies, GeneralizedNewtypeDeriving #-}"
       line ""
       line "module Podman.Types"
-      line "  ( -- * Types"
+      line "  ( -- * Responses"
       mapM_ goExport allTypes
-      line "    -- * Query"
+      line "    -- * Queries"
       mapM_ goExportQuery queryTypes
       line "    -- * Smart Constructors"
       mapM_ goExportCtor defSmartCtor
