@@ -62,14 +62,17 @@ defTypes =
     "OverlayVolume"
   ]
 responseTypes = ["LibpodInspectContainerResponse", "ContainerCreateResponse"]
-extraTypes = ["LinuxCapability"]
+extraTypes = ["LinuxCapability", "SystemdRestartPolicy"]
 defSmartCtor = ["SpecGenerator"]
 
 newTypes :: [(TypeName, Text)]
 newTypes = [("IP", "[Word8]"), ("Signal", "Int64"), ("FileMode", "Word32")]
 
 queryTypes :: [(Text, Name, PathItem -> Maybe Operation)]
-queryTypes = [("/libpod/containers/json", "ContainerListQuery", _pathItemGet)]
+queryTypes =
+  [ ("/libpod/containers/json", "ContainerListQuery", _pathItemGet),
+    ("/libpod/generate/{name:.*}/systemd", "GenerateSystemdQuery", _pathItemGet)
+  ]
 
 adaptName :: TypeName -> TypeName
 adaptName "LibpodInspectContainerResponse" = "InspectContainerResponse"
@@ -88,6 +91,7 @@ hardcodedTypes "specGenerator" aname = case aname of
   "cap_drop" -> Just "[LinuxCapability]"
   _ -> Nothing
 hardcodedTypes "namespace" "nsmode" = Just "Text"
+hardcodedTypes "generateSystemdQuery" "restartPolicy" = Just "SystemdRestartPolicy"
 hardcodedTypes _ aname =
   -- Use type safe capability type instead of [Text]
   if "Caps" `T.isSuffixOf` aname then Just "[LinuxCapability]" else Nothing
@@ -188,6 +192,7 @@ renderAttributeType tname aname ps
     paramSchemaType = _paramSchemaType ps
     paramSchemaFormat = _paramSchemaFormat ps
     paramSchemaItems = _paramSchemaItems ps
+    paramSchemaEnum = _paramSchemaEnum ps
     isArray = case paramSchemaType of
       Just SwaggerArray -> True
       _ -> False
@@ -202,7 +207,9 @@ renderAttributeType tname aname ps
       Just SwaggerString -> case paramSchemaFormat of
         Just "date-time" -> "UTCTime"
         Just x -> error ("Unknown string type: " <> T.unpack x)
-        Nothing -> "Text"
+        Nothing -> case paramSchemaEnum of
+          Just x -> error ("enum: " <> show x)
+          Nothing -> "Text"
       Just SwaggerInteger -> case paramSchemaFormat of
         Just "uint16" -> "Word16"
         Just "uint32" -> "Word32"
@@ -287,7 +294,7 @@ renderQuery :: Name -> Operation -> Builder ()
 renderQuery name Operation {..} =
   do
     renderData name (flip mappend " parameters" <$> (_operationSummary <|> _operationOperationId))
-    mapM_ renderPathAttribute _operationParameters
+    mapM_ renderPathAttribute (filter inQuery _operationParameters)
     renderDeriving name
     line $ "-- | An empty '" <> name <> "'"
     line $ "default" <> name <> " :: " <> name
@@ -297,6 +304,12 @@ renderQuery name Operation {..} =
     -- TODO: compute size from schema
     recordSize = case name of
       "ContainerListQuery" -> 5
+      "GenerateSystemdQuery" -> 8
+    inQuery :: Referenced Param -> Bool
+    inQuery (Inline (Param {..})) = case _paramSchema of
+      ParamOther (ParamOtherSchema {..}) -> _paramOtherSchemaIn == ParamQuery
+      _ -> True
+    inQuery _ = True
     renderPathAttribute :: Referenced Param -> Builder ()
     renderPathAttribute (Ref _x) = error "Invalid ref"
     renderPathAttribute (Inline (Param {..})) = renderAttribute (lowerName name) _paramDescription _paramName (schemaOf _paramSchema)
@@ -338,12 +351,14 @@ getSchema _ = error "bad schema"
 renderTypes :: Swagger -> Builder ()
 renderTypes Swagger {..} = go
   where
-    allTypes = extraTypes <> map fst newTypes <> defTypes <> responseTypes
+    allTypes = map fst newTypes <> defTypes <> responseTypes
     go = do
-      line "{-# LANGUAGE DeriveGeneric, DeriveAnyClass, DerivingStrategies, GeneralizedNewtypeDeriving #-}"
+      line "{-# LANGUAGE DeriveGeneric, DeriveAnyClass, DerivingStrategies, GeneralizedNewtypeDeriving, OverloadedStrings #-}"
       line ""
       line "module Podman.Types"
-      line "  ( -- * Responses"
+      line "  ( -- * System"
+      mapM_ goExport extraTypes
+      line "-- * Responses"
       mapM_ goExport allTypes
       line "    -- * Queries"
       mapM_ goExportQuery queryTypes
@@ -361,20 +376,14 @@ renderTypes Swagger {..} = go
       line "import GHC.Generics (Generic)"
       line "import System.Linux.Capabilities (Capability (..))"
       line ""
-      -- Define Aeson instances for Capability using a newtype
-      line "newtype LinuxCapability = LinuxCapability Capability deriving newtype (Eq, Show)"
-      line ""
-      line "instance ToJSON LinuxCapability where"
-      line "  toJSON (LinuxCapability x) = String (T.pack (show x))"
-      line ""
-      line "instance FromJSON LinuxCapability where"
-      line "  parseJSON = withText \"cap\" $ \\txt -> pure (LinuxCapability (read (T.unpack txt)))"
-      line ""
+      linuxCap
+      systemdPolicy
       mapM_ renderNewType newTypes
       mapM_ goDef defTypes
       mapM_ goResp responseTypes
       mapM_ goPath queryTypes
       mapM_ goSmart defSmartCtor
+
     goExport name = line ("  " <> adaptName name <> " (..),")
     goExportCtor name = line ("  mk" <> adaptName name <> ",")
     goExportQuery (_, name, _) = do
@@ -396,6 +405,57 @@ renderTypes Swagger {..} = go
     goSmart name = case M.lookup name _swaggerDefinitions of
       Just def -> renderCtor (adaptName name) def
       _ -> error ("Unknown" <> T.unpack name)
+    linuxCap = do
+      -- Define Aeson instances for Capability using a newtype
+      line "newtype LinuxCapability = LinuxCapability Capability deriving newtype (Eq, Show)"
+      line ""
+      line "instance ToJSON LinuxCapability where"
+      line "  toJSON (LinuxCapability x) = String (T.pack (show x))"
+      line ""
+      line "instance FromJSON LinuxCapability where"
+      line "  parseJSON = withText \"cap\" $ \\txt -> pure (LinuxCapability (read (T.unpack txt)))"
+      line ""
+    systemdPolicy = do
+      line "data SystemdRestartPolicy"
+      line "  = SystemdRestartPolicyNo"
+      line "  | SystemdRestartPolicyOnSuccess"
+      line "  | SystemdRestartPolicyOnAbnormal"
+      line "  | SystemdRestartPolicyOnWatchdog"
+      line "  | SystemdRestartPolicyOnAbort"
+      line "  | SystemdRestartPolicyAlways"
+      line "  deriving stock (Eq, Generic)"
+      line ""
+      let mapping =
+            [ ("No", "no"),
+              ("OnSuccess", "on-success"),
+              ("OnAbnormal", "on-abnormal"),
+              ("OnWatchdog", "on-watchdog"),
+              ("OnAbort", "on-abort"),
+              ("Always", "always")
+            ]
+      line "instance Show SystemdRestartPolicy where"
+      mapM_
+        ( \(name, value) ->
+            line $ "  show SystemdRestartPolicy" <> name <> " = \"" <> value <> "\""
+        )
+        mapping
+      line ""
+      line "instance ToJSON SystemdRestartPolicy where"
+      mapM_
+        ( \(name, value) ->
+            line $ "  toJSON SystemdRestartPolicy" <> name <> " = String \"" <> value <> "\""
+        )
+        mapping
+      line ""
+      line "instance FromJSON SystemdRestartPolicy where"
+      line "  parseJSON = withText \"policy\" $ \\txt -> pure $ case txt of"
+      mapM_
+        ( \(name, value) ->
+            line $ "    \"" <> value <> "\" -> SystemdRestartPolicy" <> name
+        )
+        mapping
+      line "    x -> error (\"Unknown policy\" <> T.unpack x)"
+      line ""
 
 main :: IO ()
 main = do

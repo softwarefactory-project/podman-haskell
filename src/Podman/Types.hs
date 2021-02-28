@@ -2,10 +2,14 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Podman.Types
-  ( -- * Responses
+  ( -- * System
     LinuxCapability (..),
+    SystemdRestartPolicy (..),
+
+    -- * Responses
     IP (..),
     Signal (..),
     FileMode (..),
@@ -31,6 +35,8 @@ module Podman.Types
     -- * Queries
     ContainerListQuery (..),
     defaultContainerListQuery,
+    GenerateSystemdQuery (..),
+    defaultGenerateSystemdQuery,
 
     -- * Smart Constructors
     mkSpecGenerator,
@@ -54,6 +60,41 @@ instance ToJSON LinuxCapability where
 
 instance FromJSON LinuxCapability where
   parseJSON = withText "cap" $ \txt -> pure (LinuxCapability (read (T.unpack txt)))
+
+data SystemdRestartPolicy
+  = SystemdRestartPolicyNo
+  | SystemdRestartPolicyOnSuccess
+  | SystemdRestartPolicyOnAbnormal
+  | SystemdRestartPolicyOnWatchdog
+  | SystemdRestartPolicyOnAbort
+  | SystemdRestartPolicyAlways
+  deriving stock (Eq, Generic)
+
+instance Show SystemdRestartPolicy where
+  show SystemdRestartPolicyNo = "no"
+  show SystemdRestartPolicyOnSuccess = "on-success"
+  show SystemdRestartPolicyOnAbnormal = "on-abnormal"
+  show SystemdRestartPolicyOnWatchdog = "on-watchdog"
+  show SystemdRestartPolicyOnAbort = "on-abort"
+  show SystemdRestartPolicyAlways = "always"
+
+instance ToJSON SystemdRestartPolicy where
+  toJSON SystemdRestartPolicyNo = String "no"
+  toJSON SystemdRestartPolicyOnSuccess = String "on-success"
+  toJSON SystemdRestartPolicyOnAbnormal = String "on-abnormal"
+  toJSON SystemdRestartPolicyOnWatchdog = String "on-watchdog"
+  toJSON SystemdRestartPolicyOnAbort = String "on-abort"
+  toJSON SystemdRestartPolicyAlways = String "always"
+
+instance FromJSON SystemdRestartPolicy where
+  parseJSON = withText "policy" $ \txt -> pure $ case txt of
+    "no" -> SystemdRestartPolicyNo
+    "on-success" -> SystemdRestartPolicyOnSuccess
+    "on-abnormal" -> SystemdRestartPolicyOnAbnormal
+    "on-watchdog" -> SystemdRestartPolicyOnWatchdog
+    "on-abort" -> SystemdRestartPolicyOnAbort
+    "always" -> SystemdRestartPolicyAlways
+    x -> error ("Unknown policy" <> T.unpack x)
 
 -- | A type safe wrapper for [Word8]
 newtype IP = IP [Word8]
@@ -681,6 +722,37 @@ instance ToJSON ContainerListQuery where
 -- | An empty 'ContainerListQuery'
 defaultContainerListQuery :: ContainerListQuery
 defaultContainerListQuery = ContainerListQuery Nothing Nothing Nothing Nothing Nothing
+
+-- | Generate Systemd Units parameters
+data GenerateSystemdQuery = GenerateSystemdQuery
+  { -- | Use container\/pod names instead of IDs.
+    _generateSystemdQueryuseName :: Maybe Bool,
+    -- | Create a new container instead of starting an existing one.
+    _generateSystemdQuerynew :: Maybe Bool,
+    -- | Do not generate the header including the Podman version and the timestamp.
+    _generateSystemdQuerynoHeader :: Maybe Bool,
+    -- | Stop timeout override.
+    _generateSystemdQuerytime :: Maybe Int,
+    -- | Systemd restart-policy.
+    _generateSystemdQueryrestartPolicy :: Maybe SystemdRestartPolicy,
+    -- | Systemd unit name prefix for containers.
+    _generateSystemdQuerycontainerPrefix :: Maybe Text,
+    -- | Systemd unit name prefix for pods.
+    _generateSystemdQuerypodPrefix :: Maybe Text,
+    -- | Systemd unit name separator between name\/id and prefix.
+    _generateSystemdQueryseparator :: Maybe Text
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON GenerateSystemdQuery where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 21})
+
+instance ToJSON GenerateSystemdQuery where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 21})
+
+-- | An empty 'GenerateSystemdQuery'
+defaultGenerateSystemdQuery :: GenerateSystemdQuery
+defaultGenerateSystemdQuery = GenerateSystemdQuery Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
 -- | Creates a 'SpecGenerator' by setting all the optional attributes to Nothing
 mkSpecGenerator ::

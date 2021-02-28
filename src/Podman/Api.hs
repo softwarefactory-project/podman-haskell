@@ -24,11 +24,14 @@ module Podman.Api
 
     -- * Pod
     generateKubeYAML,
+    generateSystemd,
   )
 where
 
 import Control.Monad.IO.Class (MonadIO (..))
+import Data.Map (Map)
 import Data.Text (Text)
+import qualified Data.Text as T
 import Podman.Client
 import Podman.Types
 
@@ -137,3 +140,27 @@ generateKubeYAML client names service =
     qs =
       map (\(ContainerName name) -> ("names", Just (QText name))) names
         <> [("service", Just (QBool True)) | service]
+
+-- | Generate Systemd Units based on a pod or container.
+generateSystemd ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | Name or ID of the container or pod.
+  ContainerName ->
+  -- | Systemd configuration.
+  GenerateSystemdQuery ->
+  m (Result (Map Text Text))
+generateSystemd client (ContainerName name) GenerateSystemdQuery {..} =
+  withResult <$> podmanGet client (Path $ "v1/libpod/generate/" <> name <> "/systemd") qs
+  where
+    qs =
+      [ ("useName", QBool <$> _generateSystemdQueryuseName),
+        ("new", QBool <$> _generateSystemdQuerynew),
+        ("noHeader", QBool <$> _generateSystemdQuerynoHeader),
+        ("time", QInt <$> _generateSystemdQuerytime),
+        ("restartPolicy", QText . T.pack . show <$> _generateSystemdQueryrestartPolicy),
+        ("containerPrefix", QText <$> _generateSystemdQuerycontainerPrefix),
+        ("podPrefix", QText <$> _generateSystemdQuerypodPrefix),
+        ("separator", QText <$> _generateSystemdQueryseparator)
+      ]
