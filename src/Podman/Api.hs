@@ -21,6 +21,9 @@ module Podman.Api
     mkSpecGenerator,
     containerDelete,
     containerKill,
+
+    -- * Pod
+    generateKubeYAML,
   )
 where
 
@@ -117,3 +120,20 @@ containerDelete client (ContainerName name) force volume =
   withoutResult <$> podmanDelete client (Path ("v1/libpod/containers/" <> name)) qs
   where
     qs = [("force", QBool <$> force), ("v", QBool <$> volume)]
+
+-- | Generate a Kubernetes YAML file.
+generateKubeYAML ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | List of name or ID of the container or pod.
+  [ContainerName] ->
+  -- | Generate YAML for a Kubernetes service object.
+  Bool ->
+  m (Result Text)
+generateKubeYAML client names service =
+  withText <$> podmanGet client (Path "v1/libpod/generate/kube") qs
+  where
+    qs =
+      map (\(ContainerName name) -> ("names", Just (QText name))) names
+        <> [("service", Just (QBool True)) | service]

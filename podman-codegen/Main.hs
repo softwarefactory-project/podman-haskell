@@ -115,7 +115,7 @@ isOptional "listContainer" = \case
   "Ports" -> True
   "Pod" -> True
   _ -> False
-isOptional _ = const False
+isOptional name = const $ if "Query" `T.isSuffixOf` name then True else False
 
 -- temporarly skip some types until their definitions are implemented
 skipTypes :: TypeName -> AttrName -> Bool
@@ -195,7 +195,9 @@ renderAttributeType tname aname ps
       Just (SwaggerItemsObject (Ref x)) -> getReference x
       Just (SwaggerItemsObject (Inline s)) ->
         renderAttributeType tname aname (_schemaParamSchema s)
-      _ -> error ("No items types : " <> show tname)
+      Just (SwaggerItemsPrimitive _ s) ->
+        renderAttributeType tname aname s
+      s -> error ("No items types : " <> show tname <> " " <> show s)
     schemaType = case paramSchemaType of
       Just SwaggerString -> case paramSchemaFormat of
         Just "date-time" -> "UTCTime"
@@ -289,9 +291,12 @@ renderQuery name Operation {..} =
     renderDeriving name
     line $ "-- | An empty '" <> name <> "'"
     line $ "default" <> name <> " :: " <> name
-    line $ "default" <> name <> " = " <> name <> " " <> T.intercalate " " (replicate 5 "Nothing")
+    line $ "default" <> name <> " = " <> name <> " " <> T.intercalate " " (replicate recordSize "Nothing")
     line ""
   where
+    -- TODO: compute size from schema
+    recordSize = case name of
+      "ContainerListQuery" -> 5
     renderPathAttribute :: Referenced Param -> Builder ()
     renderPathAttribute (Ref _x) = error "Invalid ref"
     renderPathAttribute (Inline (Param {..})) = renderAttribute (lowerName name) _paramDescription _paramName (schemaOf _paramSchema)
