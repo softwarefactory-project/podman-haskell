@@ -59,7 +59,10 @@ defTypes =
     "NamedVolume",
     "ImageVolume",
     "LogConfig",
-    "OverlayVolume"
+    "OverlayVolume",
+    "ImageSummary",
+    -- TODO: use response types when fixed
+    "LibpodImageTreeResponse"
   ]
 responseTypes = ["LibpodInspectContainerResponse", "ContainerCreateResponse"]
 extraTypes = ["LinuxCapability", "SystemdRestartPolicy"]
@@ -71,11 +74,13 @@ newTypes = [("IP", "[Word8]"), ("Signal", "Int64"), ("FileMode", "Word32")]
 queryTypes :: [(Text, Name, PathItem -> Maybe Operation)]
 queryTypes =
   [ ("/libpod/containers/json", "ContainerListQuery", _pathItemGet),
-    ("/libpod/generate/{name:.*}/systemd", "GenerateSystemdQuery", _pathItemGet)
+    ("/libpod/generate/{name:.*}/systemd", "GenerateSystemdQuery", _pathItemGet),
+    ("/images/json", "ImageListQuery", _pathItemGet)
   ]
 
 adaptName :: TypeName -> TypeName
 adaptName "LibpodInspectContainerResponse" = "InspectContainerResponse"
+adaptName "LibpodImageTreeResponse" = "ImageTreeResponse"
 adaptName x = x
 
 hardcodedDoc :: TypeName -> Maybe Text
@@ -98,6 +103,11 @@ hardcodedTypes _ aname =
 
 isOptional :: TypeName -> AttrName -> Bool
 isOptional "containerListQuery" = const True
+isOptional "imageSummary" = \case
+  "RepoTags" -> True
+  "RepoDigests" -> True
+  "Labels" -> True
+  _ -> False
 isOptional "specGenerator" = \case
   -- image is the only required field
   "image" -> False
@@ -119,11 +129,12 @@ isOptional "listContainer" = \case
   "Ports" -> True
   "Pod" -> True
   _ -> False
-isOptional name = const $ if "Query" `T.isSuffixOf` name then True else False
+isOptional name = const $ "Query" `T.isSuffixOf` name
 
 -- temporarly skip some types until their definitions are implemented
 skipTypes :: TypeName -> AttrName -> Bool
 skipTypes "containerListQuery" "pod" = True
+skipTypes "imageListQuery" "digests" = True
 skipTypes _ "Healthcheck" = True
 skipTypes "inspectContainerConfig" "Volumes" = True
 skipTypes "inspectContainerConfig" "Timezone" = True
@@ -154,12 +165,21 @@ instance ToJSON Version
 
 instance ToSchema Version
 
+-- TODO: report that mismatch
+data LibpodImageTreeResponse = LibpodImageTreeResponse {_Tree :: Text, layers :: Maybe [Text]}
+  deriving stock (Generic)
+
+instance ToJSON LibpodImageTreeResponse
+
+instance ToSchema LibpodImageTreeResponse
+
 fixSchema :: Swagger -> Swagger
 fixSchema s@Swagger {..} = s {_swaggerDefinitions = newDef}
   where
     newDef =
-      M.insert "Version" (toSchema (Proxy :: Proxy Version)) $
-        M.insert "Error" (toSchema (Proxy :: Proxy Error)) _swaggerDefinitions
+      M.insert "LibpodImageTreeResponse" (toSchema (Proxy :: Proxy LibpodImageTreeResponse)) $
+        M.insert "Version" (toSchema (Proxy :: Proxy Version)) $
+          M.insert "Error" (toSchema (Proxy :: Proxy Error)) _swaggerDefinitions
 
 -------------------------------------------------------------------------------
 -- OpenAPI to Haskell
@@ -305,14 +325,15 @@ renderQuery name Operation {..} =
     recordSize = case name of
       "ContainerListQuery" -> 5
       "GenerateSystemdQuery" -> 8
+      "ImageListQuery" -> 2
     inQuery :: Referenced Param -> Bool
-    inQuery (Inline (Param {..})) = case _paramSchema of
-      ParamOther (ParamOtherSchema {..}) -> _paramOtherSchemaIn == ParamQuery
+    inQuery (Inline Param {..}) = case _paramSchema of
+      ParamOther ParamOtherSchema {..} -> _paramOtherSchemaIn == ParamQuery
       _ -> True
     inQuery _ = True
     renderPathAttribute :: Referenced Param -> Builder ()
     renderPathAttribute (Ref _x) = error "Invalid ref"
-    renderPathAttribute (Inline (Param {..})) = renderAttribute (lowerName name) _paramDescription _paramName (schemaOf _paramSchema)
+    renderPathAttribute (Inline Param {..}) = renderAttribute (lowerName name) _paramDescription _paramName (schemaOf _paramSchema)
     --    schemaOf :: ParamAnySchema -> Either Reference (ParamSchema t)
     schemaOf (ParamBody _rs) = error "oops"
     schemaOf (ParamOther ParamOtherSchema {..}) = Right _paramOtherSchemaParamSchema

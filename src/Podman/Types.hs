@@ -29,6 +29,8 @@ module Podman.Types
     ImageVolume (..),
     LogConfig (..),
     OverlayVolume (..),
+    ImageSummary (..),
+    ImageTreeResponse (..),
     InspectContainerResponse (..),
     ContainerCreateResponse (..),
 
@@ -37,6 +39,8 @@ module Podman.Types
     defaultContainerListQuery,
     GenerateSystemdQuery (..),
     defaultGenerateSystemdQuery,
+    ImageListQuery (..),
+    defaultImageListQuery,
 
     -- * Smart Constructors
     mkSpecGenerator,
@@ -642,6 +646,49 @@ instance FromJSON OverlayVolume where
 instance ToJSON OverlayVolume where
   toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 14})
 
+-- | ImageSummary image summary
+data ImageSummary = ImageSummary
+  { -- | virtual size.
+    _imageSummaryVirtualSize :: Int64,
+    -- | shared size.
+    _imageSummarySharedSize :: Int64,
+    -- | size.
+    _imageSummarySize :: Int64,
+    -- | created.
+    _imageSummaryCreated :: Int64,
+    -- | repo tags.
+    _imageSummaryRepoTags :: Maybe [Text],
+    -- | containers.
+    _imageSummaryContainers :: Int64,
+    -- | Id.
+    _imageSummaryId :: Text,
+    -- | labels.
+    _imageSummaryLabels :: Maybe (M.Map Text Text),
+    -- | repo digests.
+    _imageSummaryRepoDigests :: Maybe [Text],
+    -- | parent Id.
+    _imageSummaryParentId :: Text
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON ImageSummary where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 13})
+
+instance ToJSON ImageSummary where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 13})
+
+data ImageTreeResponse = ImageTreeResponse
+  { _imageTreeResponseTree :: Text,
+    _imageTreeResponselayers :: [Text]
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON ImageTreeResponse where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 18})
+
+instance ToJSON ImageTreeResponse where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 18})
+
 data InspectContainerResponse = InspectContainerResponse
   { _inspectContainerResponseEffectiveCaps :: [LinuxCapability],
     _inspectContainerResponseRestartCount :: Int32,
@@ -753,6 +800,25 @@ instance ToJSON GenerateSystemdQuery where
 -- | An empty 'GenerateSystemdQuery'
 defaultGenerateSystemdQuery :: GenerateSystemdQuery
 defaultGenerateSystemdQuery = GenerateSystemdQuery Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
+
+-- | List Images parameters
+data ImageListQuery = ImageListQuery
+  { -- | Show all images.
+    _imageListQueryall :: Maybe Bool,
+    -- | A JSON encoded value of the filters (a `map[string][]string`) to process on the images list.
+    _imageListQueryfilters :: Maybe Text
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON ImageListQuery where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 15})
+
+instance ToJSON ImageListQuery where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 15})
+
+-- | An empty 'ImageListQuery'
+defaultImageListQuery :: ImageListQuery
+defaultImageListQuery = ImageListQuery Nothing Nothing
 
 -- | Creates a 'SpecGenerator' by setting all the optional attributes to Nothing
 mkSpecGenerator ::

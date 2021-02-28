@@ -25,6 +25,12 @@ module Podman.Api
     -- * Pod
     generateKubeYAML,
     generateSystemd,
+
+    -- * Image
+    ImageName (..),
+    imageExists,
+    imageList,
+    imageTree,
   )
 where
 
@@ -49,12 +55,10 @@ containerExists ::
   PodmanClient ->
   -- | The container name
   ContainerName ->
-  m Bool
+  -- | Returns Nothing when the container exists
+  m (Maybe Error)
 containerExists client (ContainerName name) = do
-  resp <- withoutResult <$> podmanGet client (Path ("v1/libpod/containers/" <> name <> "/exists")) mempty
-  pure $ case resp of
-    Just _ -> False
-    Nothing -> True
+  withoutResult <$> podmanGet client (Path ("v1/libpod/containers/" <> name <> "/exists")) mempty
 
 -- | Return low-level information about a container.
 containerInspect ::
@@ -164,3 +168,46 @@ generateSystemd client (ContainerName name) GenerateSystemdQuery {..} =
         ("podPrefix", QText <$> _generateSystemdQuerypodPrefix),
         ("separator", QText <$> _generateSystemdQueryseparator)
       ]
+
+newtype ImageName = ImageName Text
+  deriving stock (Show, Eq)
+
+-- | Returns a list of images on the server.
+imageList ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The list query, uses 'defaultImageListQuery'
+  ImageListQuery ->
+  m (Result [ImageSummary])
+imageList client ImageListQuery {..} =
+  withResult <$> podmanGet client (Path "v1/libpod/images/json") qs
+  where
+    qs = [("all", QBool <$> _imageListQueryall), ("filters", QText <$> _imageListQueryfilters)]
+
+-- | Check if image exists in local store.
+imageExists ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The image name
+  ImageName ->
+  -- | Returns Nothing when the image exists
+  m (Maybe Error)
+imageExists client (ImageName name) =
+  withoutResult <$> podmanGet client (Path ("v1/libpod/images/" <> name <> "/exists")) mempty
+
+-- | Retrieve the image tree for the provided image name or ID
+imageTree ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The image name
+  ImageName ->
+  -- | Show all child images and layers of the specified image
+  Maybe Bool ->
+  m (Result ImageTreeResponse)
+imageTree client (ImageName name) whatrequires =
+  withResult <$> podmanGet client (Path ("v1/libpod/images/" <> name <> "/tree")) qs
+  where
+    qs = [("whatrequires", QBool <$> whatrequires)]

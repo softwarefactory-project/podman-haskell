@@ -1,7 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-
 -- |
 -- Copyright: (c) 2021 Red Hat
 -- SPDX-License-Identifier: Apache-2.0
