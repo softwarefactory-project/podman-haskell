@@ -33,4 +33,4 @@ executable podman-codegen
                      , swagger2
                      , text                      >= 0.11.1.0 && < 1.3
                      , yaml
-  main-is:           Main.hs
+  main-is:             Codegen.hs

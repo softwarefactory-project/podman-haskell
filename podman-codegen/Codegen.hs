@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -8,7 +9,7 @@
 {-# OPTIONS_GHC -fno-warn-unused-binds -fno-warn-unused-imports #-}
 
 -- | A script to generate api types from the swagger definition
--- runhaskell podman-codegen/Main.hs | ormolu > src/Podman/Types.hs && hlint --refactor --refactor-options=-i src/Podman/Types.hs
+-- runhaskell podman-codegen/Codegen.hs | ormolu > src/Podman/Types.hs && hlint --refactor --refactor-options=-i src/Podman/Types.hs
 module Main (main) where
 
 import Control.Applicative ((<|>))
@@ -43,6 +44,8 @@ type Name = Text
 
 -- | The list of type to generate binding
 defTypes, defSmartCtor, responseTypes, extraTypes :: [TypeName]
+
+-- | Definitions
 defTypes =
   [ "Error",
     "Version",
@@ -67,15 +70,30 @@ defTypes =
     "DNS",
     "NetConf",
     "NetworkConfig",
-    "NetworkListReport"
+    "NetworkListReport",
+    -- volumes
+    "Volume",
+    "VolumeUsageData",
+    -- secrets
+    "SecretInfoReport",
+    "SecretSpec",
+    "SecretDriverSpec"
   ]
-responseTypes = ["LibpodInspectContainerResponse", "ContainerCreateResponse"]
-extraTypes = ["LinuxCapability", "SystemdRestartPolicy"]
-defSmartCtor = ["SpecGenerator"]
 
+-- | Responses
+responseTypes = ["LibpodInspectContainerResponse", "ContainerCreateResponse"]
+
+-- | Provided data types
+extraTypes = ["LinuxCapability", "SystemdRestartPolicy", "ExecResponse", "SecretCreateResponse"]
+
+-- | Smart constructors
+defSmartCtor = ["SpecGenerator", "ExecConfig"]
+
+-- | Provided new types
 newTypes :: [(TypeName, Text)]
 newTypes = [("IP", "[Word8]"), ("Signal", "Int64"), ("FileMode", "Word32")]
 
+-- | In query data types
 queryTypes :: [(Text, Name, PathItem -> Maybe Operation)]
 queryTypes =
   [ ("/libpod/containers/json", "ContainerListQuery", _pathItemGet),
@@ -83,22 +101,30 @@ queryTypes =
     ("/images/json", "ImageListQuery", _pathItemGet)
   ]
 
+-- | In body data types
+bodyTypes :: [(Text, Name, PathItem -> Maybe Operation)]
+bodyTypes = [("/libpod/containers/{name}/exec", "ExecConfig", _pathItemPost)]
+
+-- | Convert swagger name
 adaptName :: TypeName -> TypeName
 adaptName "LibpodInspectContainerResponse" = "InspectContainerResponse"
 adaptName "LibpodImageTreeResponse" = "ImageTreeResponse"
 adaptName "DNS" = "Dns"
 adaptName x = x
 
+-- | Provide missing docs
 hardcodedDoc :: TypeName -> Maybe Text
 hardcodedDoc "Error" = Just "The API error record"
 hardcodedDoc "Version" = Just "The API Version information"
 hardcodedDoc _ = Nothing
 
+-- | Fix-up attribute types
 hardcodedTypes :: TypeName -> AttrName -> Maybe Text
 -- TODO: report mismatch
 hardcodedTypes "networkConfig" "Bytes" = Just "Text"
 hardcodedTypes "networkListReport" "Bytes" = Just "Text"
 hardcodedTypes "netConf" "capabilities" = Just "Maybe (M.Map Text Bool)"
+hardcodedTypes "volume" "CreatedAt" = Just "UTCTime"
 hardcodedTypes "specGenerator" aname = case aname of
   -- The golang type is not set in swagger
   "expose" -> Just "M.Map Word Text"
@@ -111,7 +137,12 @@ hardcodedTypes _ aname =
   -- Use type safe capability type instead of [Text]
   if "Caps" `T.isSuffixOf` aname then Just "[LinuxCapability]" else Nothing
 
+-- | Fix-up optional (most swagger attributes are optional)
 isOptional :: TypeName -> AttrName -> Bool
+isOptional "volume" = \case
+  "Status" -> True
+  "UsageData" -> True
+  _ -> False
 isOptional "containerListQuery" = const True
 isOptional "netConf" = \case
   "type" -> False
@@ -146,9 +177,15 @@ isOptional "listContainer" = \case
   "Ports" -> True
   "Pod" -> True
   _ -> False
+isOptional "execConfig" = \case
+  "Cmd" -> False
+  _ -> True
+isOptional "secretDriverSpec" = \case
+  "Options" -> True
+  _ -> False
 isOptional name = const $ "Query" `T.isSuffixOf` name
 
--- temporarly skip some types until their definitions are implemented
+-- | Temporarly skip some types until their definitions are implemented
 skipTypes :: TypeName -> AttrName -> Bool
 skipTypes "netConf" "ipam" = True
 skipTypes "containerListQuery" "pod" = True
@@ -170,7 +207,7 @@ skipTypes _ n =
              "resource_limits"
            ]
 
--- Inject correct types
+-- | Create missing types
 data Error = Error {cause :: Text, message :: Text, response :: Int} deriving stock (Generic)
 
 instance ToJSON Error
@@ -307,6 +344,7 @@ renderDeriving name = do
           "})"
         ]
 
+-- | Build a new data type statement with documentation
 renderData :: Name -> Maybe Text -> Builder ()
 renderData name desc = do
   case desc of
@@ -315,6 +353,10 @@ renderData name desc = do
     Nothing -> pure ()
   line $ "data " <> name <> " = " <> name <> " {"
   resetCount
+
+toEither :: Referenced Schema -> (Maybe Text, Either Reference (ParamSchema 'SwaggerKindSchema))
+toEither (Ref r) = (Nothing, Left r)
+toEither (Inline Schema {..}) = (_schemaDescription, Right _schemaParamSchema)
 
 -- | Build an haskell data type
 renderSchema :: Name -> Schema -> Builder ()
@@ -325,26 +367,38 @@ renderSchema name Schema {..} =
     renderDeriving name
   where
     renderAttribute' (aname, (desc, e)) = renderAttribute (lowerName name) desc aname e
-    -- toEither :: Referenced Schema -> Either Reference (ParamSchema t)
-    toEither (Ref r) = (Nothing, Left r)
-    toEither (Inline Schema {..}) = (_schemaDescription, Right _schemaParamSchema)
 
-renderQuery :: Name -> Operation -> Builder ()
-renderQuery name Operation {..} =
+data InputType = InQuery | InBody
+
+renderQuery = renderInput InQuery
+
+renderBody = renderInput InBody
+
+renderInput :: InputType -> Name -> Operation -> Builder ()
+renderInput it name Operation {..} =
   do
     renderData name (flip mappend " parameters" <$> (_operationSummary <|> _operationOperationId))
-    mapM_ renderPathAttribute (filter inQuery _operationParameters)
+    case it of
+      InQuery -> mapM_ renderPathAttribute (filter inQuery _operationParameters)
+      _ -> mapM_ renderAttribute' (M.toList (toEither <$> _schemaProperties (getBody _operationParameters)))
     renderDeriving name
-    line $ "-- | An empty '" <> name <> "'"
-    line $ "default" <> name <> " :: " <> name
-    line $ "default" <> name <> " = " <> name <> " " <> T.intercalate " " (replicate recordSize "Nothing")
-    line ""
+    unless (name `elem` defSmartCtor) $ do
+      line $ "-- | An empty '" <> name <> "'"
+      line $ "default" <> name <> " :: " <> name
+      line $ "default" <> name <> " = " <> name <> " " <> T.intercalate " " (replicate recordSize "Nothing")
+      line ""
   where
     -- TODO: compute size from schema
     recordSize = case name of
       "ContainerListQuery" -> 5
       "GenerateSystemdQuery" -> 8
       "ImageListQuery" -> 2
+      "ExecConfig" -> 10
+    getBody ((Inline x) : xs) = case _paramSchema x of
+      ParamBody (Inline s) -> s
+      _ -> getBody xs
+    getBody _ = error "No body"
+    renderAttribute' (aname, (desc, e)) = renderAttribute (lowerName name) desc aname e
     inQuery :: Referenced Param -> Bool
     inQuery (Inline Param {..}) = case _paramSchema of
       ParamOther ParamOtherSchema {..} -> _paramOtherSchemaIn == ParamQuery
@@ -357,7 +411,7 @@ renderQuery name Operation {..} =
     schemaOf (ParamBody _rs) = error "oops"
     schemaOf (ParamOther ParamOtherSchema {..}) = Right _paramOtherSchemaParamSchema
 
-renderCtor :: Name -> Schema -> Builder ()
+renderCtor :: Name -> s -> Builder ()
 renderCtor name _ =
   do
     line $ "-- | Creates a '" <> name <> "' by setting all the optional attributes to Nothing"
@@ -366,7 +420,11 @@ renderCtor name _ =
     line $ "mk" <> name <> " " <> T.intercalate " " (map T.toLower requiredNames) <> " = " <> impl
   where
     -- TODO: generate that list from the schema
-    typeItems = replicate 13 Nothing <> [Just ("image", "Text")] <> replicate 72 Nothing
+    (pre, after, xs) = case name of
+      "SpecGenerator" -> (13, 72, [("image", "Text")])
+      "ExecConfig" -> (5, 4, [("cmd", "[Text]")])
+      _ -> error ("Unknown ctor: " <> T.unpack name)
+    typeItems = replicate pre Nothing <> map Just xs <> replicate after Nothing
     getValues Nothing = "Nothing"
     getValues (Just (x, _)) = x
     requiredItems = catMaybes typeItems
@@ -398,10 +456,12 @@ renderTypes Swagger {..} = go
       line "module Podman.Types"
       line "  ( -- * System"
       mapM_ goExport extraTypes
-      line "-- * Responses"
+      line "    -- * Responses"
       mapM_ goExport allTypes
       line "    -- * Queries"
       mapM_ goExportQuery queryTypes
+      line "    -- * Bodies"
+      mapM_ (goExport . (\(_, n, _) -> n)) bodyTypes
       line "    -- * Smart Constructors"
       mapM_ goExportCtor defSmartCtor
       tell "  ) where"
@@ -418,10 +478,12 @@ renderTypes Swagger {..} = go
       line ""
       linuxCap
       systemdPolicy
+      execResp
       mapM_ renderNewType newTypes
       mapM_ goDef defTypes
       mapM_ goResp responseTypes
       mapM_ goPath queryTypes
+      mapM_ goBody bodyTypes
       mapM_ goSmart defSmartCtor
 
     goExport name = line ("  " <> adaptName name <> " (..),")
@@ -434,17 +496,20 @@ renderTypes Swagger {..} = go
         Just operation -> renderQuery name operation
         Nothing -> error ("No operation for " <> T.unpack path <> " " <> T.unpack name)
       Nothing -> error ("No path " <> T.unpack path)
+    goBody (path, name, op) = case M.lookup (T.unpack path) _swaggerPaths of
+      Just path' -> case op path' of
+        Just operation -> renderBody name operation
+        Nothing -> error ("No operation for " <> T.unpack path <> " " <> T.unpack name)
+      Nothing -> error ("No path " <> T.unpack path)
     goResp name = case M.lookup name _swaggerResponses of
       Just resp -> case _responseSchema resp of
         Just (Inline s) -> renderSchema (adaptName name) s
         _ -> error ("Bad response" <> T.unpack name)
-      Nothing -> error ("Unknown" <> T.unpack name)
+      Nothing -> error ("Unknown resp: " <> T.unpack name)
     goDef name = case M.lookup name _swaggerDefinitions of
       Just def -> renderSchema (adaptName name) def
-      _ -> error ("Unknown" <> T.unpack name)
-    goSmart name = case M.lookup name _swaggerDefinitions of
-      Just def -> renderCtor (adaptName name) def
-      _ -> error ("Unknown" <> T.unpack name)
+      _ -> error ("Unknown def: " <> T.unpack name)
+    goSmart name = renderCtor (adaptName name) undefined
     linuxCap = do
       -- Define Aeson instances for Capability using a newtype
       line "newtype LinuxCapability = LinuxCapability Capability deriving newtype (Eq, Show)"
@@ -455,6 +520,11 @@ renderTypes Swagger {..} = go
       line "instance FromJSON LinuxCapability where"
       line "  parseJSON = withText \"cap\" $ \\txt -> pure (LinuxCapability (read (T.unpack txt)))"
       line ""
+    execResp = do
+      line "newtype ExecResponse = ExecResponse { _execResponseId :: Text"
+      renderDeriving "ExecResponse"
+      line "newtype SecretCreateResponse = SecretCreateResponse { _secretCreateResponseID :: Text"
+      renderDeriving "SecretCreateResponse"
     systemdPolicy = do
       line "data SystemdRestartPolicy"
       line "  = SystemdRestartPolicyNo"

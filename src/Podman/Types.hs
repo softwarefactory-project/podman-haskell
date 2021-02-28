@@ -8,6 +8,8 @@ module Podman.Types
   ( -- * System
     LinuxCapability (..),
     SystemdRestartPolicy (..),
+    ExecResponse (..),
+    SecretCreateResponse (..),
 
     -- * Responses
     IP (..),
@@ -35,6 +37,11 @@ module Podman.Types
     NetConf (..),
     NetworkConfig (..),
     NetworkListReport (..),
+    Volume (..),
+    VolumeUsageData (..),
+    SecretInfoReport (..),
+    SecretSpec (..),
+    SecretDriverSpec (..),
     InspectContainerResponse (..),
     ContainerCreateResponse (..),
 
@@ -46,8 +53,12 @@ module Podman.Types
     ImageListQuery (..),
     defaultImageListQuery,
 
+    -- * Bodies
+    ExecConfig (..),
+
     -- * Smart Constructors
     mkSpecGenerator,
+    mkExecConfig,
   )
 where
 
@@ -103,6 +114,28 @@ instance FromJSON SystemdRestartPolicy where
     "on-abort" -> SystemdRestartPolicyOnAbort
     "always" -> SystemdRestartPolicyAlways
     x -> error ("Unknown policy" <> T.unpack x)
+
+newtype ExecResponse = ExecResponse
+  { _execResponseId :: Text
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON ExecResponse where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 13})
+
+instance ToJSON ExecResponse where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 13})
+
+newtype SecretCreateResponse = SecretCreateResponse
+  { _secretCreateResponseID :: Text
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON SecretCreateResponse where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 21})
+
+instance ToJSON SecretCreateResponse where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 21})
 
 -- | A type safe wrapper for [Word8]
 newtype IP = IP [Word8]
@@ -754,6 +787,88 @@ instance FromJSON NetworkListReport where
 instance ToJSON NetworkListReport where
   toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 18})
 
+-- | Volume volume
+data Volume = Volume
+  { -- | Low-level details about the volume, provided by the volume driver.
+    _volumeStatus :: Maybe (M.Map Text Text),
+    -- | Date\/Time the volume was created.
+    _volumeCreatedAt :: UTCTime,
+    -- | Name of the volume driver used by the volume.
+    _volumeDriver :: Text,
+    -- | Name of the volume.
+    _volumeName :: Text,
+    -- | The level at which the volume exists.
+    _volumeScope :: Text,
+    -- | User-defined key\/value metadata.
+    _volumeLabels :: M.Map Text Text,
+    _volumeUsageData :: Maybe VolumeUsageData,
+    -- | The driver specific options used when creating the volume.
+    _volumeOptions :: M.Map Text Text,
+    -- | Mount path of the volume on the host.
+    _volumeMountpoint :: Text
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON Volume where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 7})
+
+instance ToJSON Volume where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 7})
+
+-- | VolumeUsageData Usage details about the volume. This information is used by the
+-- `GET /system/df` endpoint, and omitted in other endpoints.
+data VolumeUsageData = VolumeUsageData
+  { -- | The number of containers referencing this volume.
+    _volumeUsageDataRefCount :: Int64,
+    -- | Amount of disk space used by the volume (in bytes).
+    _volumeUsageDataSize :: Int64
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON VolumeUsageData where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 16})
+
+instance ToJSON VolumeUsageData where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 16})
+
+data SecretInfoReport = SecretInfoReport
+  { _secretInfoReportCreatedAt :: UTCTime,
+    _secretInfoReportID :: Text,
+    _secretInfoReportSpec :: SecretSpec,
+    _secretInfoReportUpdatedAt :: UTCTime
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON SecretInfoReport where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 17})
+
+instance ToJSON SecretInfoReport where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 17})
+
+data SecretSpec = SecretSpec
+  { _secretSpecDriver :: SecretDriverSpec,
+    _secretSpecName :: Text
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON SecretSpec where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 11})
+
+instance ToJSON SecretSpec where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 11})
+
+data SecretDriverSpec = SecretDriverSpec
+  { _secretDriverSpecName :: Text,
+    _secretDriverSpecOptions :: Maybe (M.Map Text Text)
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON SecretDriverSpec where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 17})
+
+instance ToJSON SecretDriverSpec where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 17})
+
 data InspectContainerResponse = InspectContainerResponse
   { _inspectContainerResponseEffectiveCaps :: [LinuxCapability],
     _inspectContainerResponseRestartCount :: Int32,
@@ -885,9 +1000,47 @@ instance ToJSON ImageListQuery where
 defaultImageListQuery :: ImageListQuery
 defaultImageListQuery = ImageListQuery Nothing Nothing
 
+-- | Create an exec instance parameters
+data ExecConfig = ExecConfig
+  { -- | A list of environment variables in the form ["VAR=value", .
+    _execConfigEnv :: Maybe [Text],
+    -- | Runs the exec process with extended privileges.
+    _execConfigPrivileged :: Maybe Bool,
+    -- | The working directory for the exec process inside the container.
+    _execConfigWorkingDir :: Maybe Text,
+    -- | "The user, and optionally, group to run the exec process inside the container.
+    _execConfigUser :: Maybe Text,
+    -- | Attach to stdin of the exec command.
+    _execConfigAttachStdin :: Maybe Bool,
+    -- | Command to run, as a string or array of strings.
+    _execConfigCmd :: [Text],
+    -- | Attach to stderr of the exec command.
+    _execConfigAttachStderr :: Maybe Bool,
+    -- | "Override the key sequence for detaching a container.
+    _execConfigDetachKeys :: Maybe Text,
+    -- | Attach to stdout of the exec command.
+    _execConfigAttachStdout :: Maybe Bool,
+    -- | Allocate a pseudo-TTY.
+    _execConfigTty :: Maybe Bool
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON ExecConfig where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 11})
+
+instance ToJSON ExecConfig where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 11})
+
 -- | Creates a 'SpecGenerator' by setting all the optional attributes to Nothing
 mkSpecGenerator ::
   -- | image
   Text ->
   SpecGenerator
 mkSpecGenerator image = SpecGenerator Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing image Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
+
+-- | Creates a 'ExecConfig' by setting all the optional attributes to Nothing
+mkExecConfig ::
+  -- | cmd
+  [Text] ->
+  ExecConfig
+mkExecConfig cmd = ExecConfig Nothing Nothing Nothing Nothing Nothing cmd Nothing Nothing Nothing Nothing

@@ -22,6 +22,9 @@ module Podman.Api
     containerDelete,
     containerKill,
 
+    -- * Exec
+    execCreate,
+
     -- * Pod
     generateKubeYAML,
     generateSystemd,
@@ -36,10 +39,22 @@ module Podman.Api
     NetworkName (..),
     networkExists,
     networkList,
+
+    -- * Volume
+    VolumeName (..),
+    volumeExists,
+    volumeList,
+
+    -- * Secret
+    SecretName (..),
+    secretList,
+    secretCreate,
+    secretInspect,
   )
 where
 
 import Control.Monad.IO.Class (MonadIO (..))
+import Data.ByteString (ByteString)
 import Data.Map (Map)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -99,7 +114,7 @@ containerList client ContainerListQuery {..} = do
 
 -- | Create a container
 containerCreate :: MonadIO m => PodmanClient -> SpecGenerator -> m (Result ContainerCreateResponse)
-containerCreate client spec = withResult <$> podmanPost client spec (Path "v1/libpod/containers/create") mempty
+containerCreate client spec = withResult <$> podmanPost client (Json spec) (Path "v1/libpod/containers/create") mempty
 
 -- | Ssend a signal to a container, defaults to killing the container
 containerKill ::
@@ -244,3 +259,81 @@ networkExists ::
   m (Maybe Error)
 networkExists client (NetworkName name) =
   withoutResult <$> podmanGet client (Path ("v1/libpod/networks/" <> name <> "/exists")) mempty
+
+newtype VolumeName = VolumeName Text
+  deriving stock (Show, Eq)
+
+-- | Returns a list of volumes on the server.
+volumeList ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | JSON encoded value of the filters (a map[string][]string) to process on the volume list.
+  Maybe Text ->
+  m (Result [Volume])
+volumeList client filters =
+  withResult <$> podmanGet client (Path "v1/libpod/volumes/json") qs
+  where
+    qs = [("filters", QText <$> filters)]
+
+-- | Check if volume exists in local store.
+volumeExists ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The volume name
+  VolumeName ->
+  -- | Returns Nothing when the volume exists
+  m (Maybe Error)
+volumeExists client (VolumeName name) =
+  withoutResult <$> podmanGet client (Path ("v1/libpod/volumes/" <> name <> "/exists")) mempty
+
+-- | Create an exec instance
+execCreate ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The container name
+  ContainerName ->
+  -- | The exec config
+  ExecConfig ->
+  m (Result ExecResponse)
+execCreate client (ContainerName name) config =
+  withResult <$> podmanPost client (Json config) (Path ("v1/libpod/containers/" <> name <> "/exec")) mempty
+
+newtype SecretName = SecretName Text
+  deriving stock (Show, Eq)
+
+-- | Returns a list of secrets
+secretList ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  m (Result [SecretInfoReport])
+secretList client =
+  withResult <$> podmanGet client (Path "v1/libpod/secrets/json") mempty
+
+secretCreate ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The secret name
+  SecretName ->
+  -- | The secret data
+  ByteString ->
+  m (Result SecretCreateResponse)
+secretCreate client (SecretName name) dat =
+  withResult <$> podmanPost client (raw dat) (Path "v1/libpod/secrets/create") qs
+  where
+    qs = [("name", Just (QText name))]
+
+-- | Inspect a secret.
+secretInspect ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The secret name
+  SecretName ->
+  m (Result SecretInfoReport)
+secretInspect client (SecretName name) =
+  withResult <$> podmanGet client (Path ("v1/libpod/secrets/" <> name <> "/json")) mempty

@@ -12,6 +12,7 @@ module Podman.Client
     PodmanClient,
     withClient,
     Result,
+    Body (..),
 
     -- * Request helper
     Path (..),
@@ -21,6 +22,7 @@ module Podman.Client
     withResult,
     withText,
     emptyBody,
+    raw,
     podmanGet,
     podmanPost,
     podmanDelete,
@@ -31,6 +33,7 @@ import Control.Monad.IO.Class (MonadIO (..))
 import Data.Aeson (FromJSON, ToJSON, Value, eitherDecodeStrict, encode)
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 (pack)
+import qualified Data.ByteString.Lazy as LBS
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -92,11 +95,12 @@ type Result a = Either Error a
 
 type ResultM a = Result (Maybe a)
 
-type ResultB a = ResultM (ResponseBody a)
+type ResultB a = ResultM (Body a)
 
-data ResponseBody a
+data Body a
   = Json a
   | Raw ByteString
+  | NoBody
 
 -- | Query string helper
 data QueryValue
@@ -107,8 +111,6 @@ data QueryValue
 type QueryArgs = [(ByteString, Maybe QueryValue)]
 
 newtype Path = Path Text
-
-newtype Body a = Body (Maybe a)
 
 type Verb = ByteString
 
@@ -122,7 +124,7 @@ encodeQueryParam name = \case
     toQueryValue (QText t) = T.encodeUtf8 t
 
 podmanReq :: (MonadIO m, ToJSON a, FromJSON b) => PodmanClient -> Verb -> Body a -> Path -> QueryArgs -> m (ResultB b)
-podmanReq client verb (Body body) (Path path) args = do
+podmanReq client verb body (Path path) args = do
   initRequest <- liftIO $ parseUrlThrow (T.unpack (baseUrl client <> path))
   let request' =
         initRequest
@@ -131,8 +133,9 @@ podmanReq client verb (Body body) (Path path) args = do
             checkResponse = const . const $ pure ()
           }
       request = case body of
-        Just x -> request' {requestBody = RequestBodyLBS $ encode x}
-        Nothing -> request'
+        Json x -> request' {requestBody = RequestBodyLBS $ encode x}
+        Raw bs -> request' {requestBody = RequestBodyLBS $ LBS.fromStrict bs}
+        NoBody -> request'
   liftIO $
     withResponse (withQs request) (manager client) $ \response -> do
       let Status code _ = responseStatus response
@@ -156,39 +159,44 @@ podmanReq client verb (Body body) (Path path) args = do
       qs -> setQueryString qs
 
 -- | Raise an exception if there is a result
-withoutResult :: ResultM (ResponseBody Value) -> Maybe Error
+withoutResult :: ResultM (Body Value) -> Maybe Error
 withoutResult = \case
   Left err -> Just err
   Right Nothing -> Nothing
   Right (Just _) -> error "Unexpected response"
 
 -- | Raise an exception if there is no result
-withResult :: ResultM (ResponseBody a) -> Result a
+withResult :: ResultM (Body a) -> Result a
 withResult = \case
   Left err -> Left err
   Right (Just (Json x)) -> Right x
   Right (Just (Raw _)) -> error "Raw response"
+  Right (Just NoBody) -> error "Raw response"
   Right Nothing -> error "Empty response"
 
-withRaw :: ResultM (ResponseBody Value) -> Result ByteString
+withRaw :: ResultM (Body Value) -> Result ByteString
 withRaw = \case
   Left err -> Left err
   Right (Just (Json _)) -> error "Json response"
   Right (Just (Raw x)) -> Right x
+  Right (Just NoBody) -> error "Empty response"
   Right Nothing -> error "Empty response"
 
-withText :: ResultM (ResponseBody Value) -> Result Text
+withText :: ResultM (Body Value) -> Result Text
 withText x = T.decodeUtf8 <$> withRaw x
 
 -- | An empty body
-emptyBody :: Maybe Value
-emptyBody = Nothing
+emptyBody :: Body Value
+emptyBody = NoBody
+
+raw :: ByteString -> Body Value
+raw = Raw
 
 podmanGet :: (MonadIO m, FromJSON b) => PodmanClient -> Path -> QueryArgs -> m (ResultB b)
-podmanGet client = podmanReq client "GET" (Body emptyBody)
+podmanGet client = podmanReq client "GET" emptyBody
 
-podmanPost :: (MonadIO m, ToJSON a, FromJSON b) => PodmanClient -> a -> Path -> QueryArgs -> m (ResultB b)
-podmanPost client body = podmanReq client "POST" (Body (Just body))
+podmanPost :: (MonadIO m, ToJSON a, FromJSON b) => PodmanClient -> Body a -> Path -> QueryArgs -> m (ResultB b)
+podmanPost client = podmanReq client "POST"
 
 podmanDelete :: (MonadIO m, FromJSON b) => PodmanClient -> Path -> QueryArgs -> m (ResultB b)
-podmanDelete client = podmanReq client "DELETE" (Body emptyBody)
+podmanDelete client = podmanReq client "DELETE" emptyBody
