@@ -31,6 +31,10 @@ module Podman.Types
     OverlayVolume (..),
     ImageSummary (..),
     ImageTreeResponse (..),
+    Dns (..),
+    NetConf (..),
+    NetworkConfig (..),
+    NetworkListReport (..),
     InspectContainerResponse (..),
     ContainerCreateResponse (..),
 
@@ -687,6 +691,67 @@ instance FromJSON ImageTreeResponse where
   parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 18})
 
 instance ToJSON ImageTreeResponse where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 18})
+
+-- | DNS contains values interesting for DNS resolvers
+data Dns = Dns
+  { _dnsdomain :: Maybe Text,
+    _dnsoptions :: Maybe [Text],
+    _dnssearch :: Maybe [Text],
+    _dnsnameservers :: Maybe [Text]
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON Dns where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 4})
+
+instance ToJSON Dns where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 4})
+
+-- | NetConf describes a network.
+data NetConf = NetConf
+  { _netConfname :: Maybe Text,
+    _netConfprevResult :: Maybe (M.Map Text Text),
+    _netConftype :: Text,
+    _netConfcniVersion :: Maybe Text,
+    _netConfcapabilities :: Maybe (Maybe (M.Map Text Bool)),
+    _netConfdns :: Maybe Dns
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON NetConf where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 8})
+
+instance ToJSON NetConf where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 8})
+
+data NetworkConfig = NetworkConfig
+  { _networkConfigNetwork :: NetConf,
+    _networkConfigBytes :: Text
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON NetworkConfig where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 14})
+
+instance ToJSON NetworkConfig where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 14})
+
+-- | NetworkListReport describes the results from listing networks
+data NetworkListReport = NetworkListReport
+  { _networkListReportDisableCheck :: Bool,
+    _networkListReportName :: Text,
+    _networkListReportPlugins :: [NetworkConfig],
+    _networkListReportLabels :: Maybe (M.Map Text Text),
+    _networkListReportCNIVersion :: Text,
+    _networkListReportBytes :: Text
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON NetworkListReport where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 18})
+
+instance ToJSON NetworkListReport where
   toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 18})
 
 data InspectContainerResponse = InspectContainerResponse

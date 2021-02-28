@@ -31,6 +31,11 @@ module Podman.Api
     imageExists,
     imageList,
     imageTree,
+
+    -- * Network
+    NetworkName (..),
+    networkExists,
+    networkList,
   )
 where
 
@@ -211,3 +216,31 @@ imageTree client (ImageName name) whatrequires =
   withResult <$> podmanGet client (Path ("v1/libpod/images/" <> name <> "/tree")) qs
   where
     qs = [("whatrequires", QBool <$> whatrequires)]
+
+newtype NetworkName = NetworkName Text
+  deriving stock (Show, Eq)
+
+-- | Returns a list of networks on the server.
+networkList ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | JSON encoded value of the filters (a map[string][]string) to process on the network list.
+  Maybe Text ->
+  m (Result [NetworkListReport])
+networkList client filters =
+  withResult <$> podmanGet client (Path "v1/libpod/networks/json") qs
+  where
+    qs = [("filters", QText <$> filters)]
+
+-- | Check if network exists in local store.
+networkExists ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The network name
+  NetworkName ->
+  -- | Returns Nothing when the network exists
+  m (Maybe Error)
+networkExists client (NetworkName name) =
+  withoutResult <$> podmanGet client (Path ("v1/libpod/networks/" <> name <> "/exists")) mempty

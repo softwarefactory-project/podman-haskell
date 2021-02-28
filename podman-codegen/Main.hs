@@ -62,7 +62,12 @@ defTypes =
     "OverlayVolume",
     "ImageSummary",
     -- TODO: use response types when fixed
-    "LibpodImageTreeResponse"
+    "LibpodImageTreeResponse",
+    -- networks
+    "DNS",
+    "NetConf",
+    "NetworkConfig",
+    "NetworkListReport"
   ]
 responseTypes = ["LibpodInspectContainerResponse", "ContainerCreateResponse"]
 extraTypes = ["LinuxCapability", "SystemdRestartPolicy"]
@@ -81,6 +86,7 @@ queryTypes =
 adaptName :: TypeName -> TypeName
 adaptName "LibpodInspectContainerResponse" = "InspectContainerResponse"
 adaptName "LibpodImageTreeResponse" = "ImageTreeResponse"
+adaptName "DNS" = "Dns"
 adaptName x = x
 
 hardcodedDoc :: TypeName -> Maybe Text
@@ -89,6 +95,10 @@ hardcodedDoc "Version" = Just "The API Version information"
 hardcodedDoc _ = Nothing
 
 hardcodedTypes :: TypeName -> AttrName -> Maybe Text
+-- TODO: report mismatch
+hardcodedTypes "networkConfig" "Bytes" = Just "Text"
+hardcodedTypes "networkListReport" "Bytes" = Just "Text"
+hardcodedTypes "netConf" "capabilities" = Just "Maybe (M.Map Text Bool)"
 hardcodedTypes "specGenerator" aname = case aname of
   -- The golang type is not set in swagger
   "expose" -> Just "M.Map Word Text"
@@ -103,6 +113,13 @@ hardcodedTypes _ aname =
 
 isOptional :: TypeName -> AttrName -> Bool
 isOptional "containerListQuery" = const True
+isOptional "netConf" = \case
+  "type" -> False
+  _ -> True
+isOptional "networkListReport" = \case
+  "Labels" -> True
+  _ -> False
+isOptional "dns" = const True
 isOptional "imageSummary" = \case
   "RepoTags" -> True
   "RepoDigests" -> True
@@ -133,6 +150,7 @@ isOptional name = const $ "Query" `T.isSuffixOf` name
 
 -- temporarly skip some types until their definitions are implemented
 skipTypes :: TypeName -> AttrName -> Bool
+skipTypes "netConf" "ipam" = True
 skipTypes "containerListQuery" "pod" = True
 skipTypes "imageListQuery" "digests" = True
 skipTypes _ "Healthcheck" = True
@@ -231,6 +249,7 @@ renderAttributeType tname aname ps
           Just x -> error ("enum: " <> show x)
           Nothing -> "Text"
       Just SwaggerInteger -> case paramSchemaFormat of
+        Just "uint8" -> "Word8"
         Just "uint16" -> "Word16"
         Just "uint32" -> "Word32"
         Just "uint64" -> "Word64"
@@ -261,7 +280,7 @@ renderAttribute tname desc name schemaE
     toHaddock = T.replace "\n" " " . T.replace "/" "\\/" . T.takeWhile (/= '.')
     attributeType = if isOptional tname name then "Maybe (" <> attributeType' <> ")" else attributeType'
     attributeType' = flip fromMaybe (hardcodedTypes tname name) $ case schemaE of
-      Left ref -> getReference ref
+      Left ref -> adaptName (getReference ref)
       Right ps -> renderAttributeType tname name ps
 
 lowerName :: Text -> Text
