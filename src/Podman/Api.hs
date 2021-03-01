@@ -21,6 +21,8 @@ module Podman.Api
     mkSpecGenerator,
     containerDelete,
     containerKill,
+    containerSendFiles,
+    containerGetFiles,
 
     -- * Exec
     execCreate,
@@ -53,8 +55,10 @@ module Podman.Api
   )
 where
 
+import qualified Codec.Archive.Tar as Tar
 import Control.Monad.IO.Class (MonadIO (..))
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Lazy as LBS
 import Data.Map (Map)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -115,6 +119,44 @@ containerList client ContainerListQuery {..} = do
 -- | Create a container
 containerCreate :: MonadIO m => PodmanClient -> SpecGenerator -> m (Result ContainerCreateResponse)
 containerCreate client spec = withResult <$> podmanPost client (Json spec) (Path "v1/libpod/containers/create") mempty
+
+-- | Copy a tar archive of files into a container
+containerSendFiles ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The container name
+  ContainerName ->
+  -- | List of tar entries
+  [Tar.Entry] ->
+  -- | Path to a directory in the container to extract
+  Text ->
+  -- | Pause the container while copying (defaults to true)
+  Maybe Bool ->
+  m (Maybe Error)
+containerSendFiles client (ContainerName name) entries path pause =
+  withoutResult <$> podmanPut client (lazyRaw tar) (Path ("v1/libpod/containers/" <> name <> "/archive")) qs
+  where
+    qs = [("path", Just $ QText path), ("pause", QBool <$> pause)]
+    tar = Tar.write entries
+
+-- | Get a tar archive of files from a container
+containerGetFiles ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The container name
+  ContainerName ->
+  -- | Path to a directory in the container to extract
+  Text ->
+  m (Result (Tar.Entries Tar.FormatError))
+containerGetFiles client (ContainerName name) path = do
+  res <- withRaw <$> podmanGet client (Path ("v1/libpod/containers/" <> name <> "/archive")) qs
+  pure $ case res of
+    Left err -> Left err
+    Right bs -> Right (Tar.read $ LBS.fromStrict bs)
+  where
+    qs = [("path", Just $ QText path)]
 
 -- | Ssend a signal to a container, defaults to killing the container
 containerKill ::

@@ -23,8 +23,10 @@ module Podman.Client
     withText,
     emptyBody,
     raw,
+    lazyRaw,
     podmanGet,
     podmanPost,
+    podmanPut,
     podmanDelete,
   )
 where
@@ -39,7 +41,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Network.HTTP.Client
   ( Manager,
-    RequestBody (RequestBodyLBS),
+    RequestBody (..),
     brConsume,
     checkResponse,
     defaultManagerSettings,
@@ -100,6 +102,7 @@ type ResultB a = ResultM (Body a)
 data Body a
   = Json a
   | Raw ByteString
+  | LazyRaw LBS.ByteString
   | NoBody
 
 -- | Query string helper
@@ -134,7 +137,8 @@ podmanReq client verb body (Path path) args = do
           }
       request = case body of
         Json x -> request' {requestBody = RequestBodyLBS $ encode x}
-        Raw bs -> request' {requestBody = RequestBodyLBS $ LBS.fromStrict bs}
+        LazyRaw bs -> request' {requestBody = RequestBodyLBS bs}
+        Raw bs -> request' {requestBody = RequestBodyBS bs}
         NoBody -> request'
   liftIO $
     withResponse (withQs request) (manager client) $ \response -> do
@@ -171,6 +175,7 @@ withResult = \case
   Left err -> Left err
   Right (Just (Json x)) -> Right x
   Right (Just (Raw _)) -> error "Raw response"
+  Right (Just (LazyRaw _)) -> error "Raw response"
   Right (Just NoBody) -> error "Raw response"
   Right Nothing -> error "Empty response"
 
@@ -179,6 +184,7 @@ withRaw = \case
   Left err -> Left err
   Right (Just (Json _)) -> error "Json response"
   Right (Just (Raw x)) -> Right x
+  Right (Just (LazyRaw _)) -> error "Lazy response"
   Right (Just NoBody) -> error "Empty response"
   Right Nothing -> error "Empty response"
 
@@ -192,8 +198,14 @@ emptyBody = NoBody
 raw :: ByteString -> Body Value
 raw = Raw
 
+lazyRaw :: LBS.ByteString -> Body Value
+lazyRaw = LazyRaw
+
 podmanGet :: (MonadIO m, FromJSON b) => PodmanClient -> Path -> QueryArgs -> m (ResultB b)
 podmanGet client = podmanReq client "GET" emptyBody
+
+podmanPut :: (MonadIO m, ToJSON a, FromJSON b) => PodmanClient -> Body a -> Path -> QueryArgs -> m (ResultB b)
+podmanPut client = podmanReq client "PUT"
 
 podmanPost :: (MonadIO m, ToJSON a, FromJSON b) => PodmanClient -> Body a -> Path -> QueryArgs -> m (ResultB b)
 podmanPost client = podmanReq client "POST"

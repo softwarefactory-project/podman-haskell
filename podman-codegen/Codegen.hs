@@ -120,19 +120,26 @@ hardcodedDoc _ = Nothing
 
 -- | Fix-up attribute types
 hardcodedTypes :: TypeName -> AttrName -> Maybe Text
--- TODO: report mismatch
+-- Swagger mismatch for Bytes: https://github.com/containers/podman/issues/9551
 hardcodedTypes "networkConfig" "Bytes" = Just "Text"
 hardcodedTypes "networkListReport" "Bytes" = Just "Text"
+-- TODO: generate proper type by using the `additionalProperties: {type: boolean}`
 hardcodedTypes "netConf" "capabilities" = Just "Maybe (M.Map Text Bool)"
+-- Better type: https://github.com/containers/podman/pull/9558
 hardcodedTypes "volume" "CreatedAt" = Just "UTCTime"
 hardcodedTypes "specGenerator" aname = case aname of
-  -- The golang type is not set in swagger
+  -- The golang type is not set in swagger: https://github.com/containers/podman/issues/9559
   "expose" -> Just "M.Map Word Text"
+  -- Use the provided LinuxCapability type
   "cap_add" -> Just "[LinuxCapability]"
   "cap_drop" -> Just "[LinuxCapability]"
   _ -> Nothing
-hardcodedTypes "namespace" "nsmode" = Just "Text"
-hardcodedTypes "generateSystemdQuery" "restartPolicy" = Just "SystemdRestartPolicy"
+hardcodedTypes "namespace" "nsmode" =
+  -- Avoid using a newtype for NamespaceMode for Text
+  Just "Text"
+hardcodedTypes "generateSystemdQuery" "restartPolicy" =
+  -- Use the provided SystemdRestartPolicy type
+  Just "SystemdRestartPolicy"
 hardcodedTypes _ aname =
   -- Use type safe capability type instead of [Text]
   if "Caps" `T.isSuffixOf` aname then Just "[LinuxCapability]" else Nothing
