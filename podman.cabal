@@ -54,6 +54,7 @@ library
                      , http-types             < 0.13
                      , linux-capabilities     < 0.2
                      , network                < 4
+                     , tar                    < 0.6
                      , text                   >= 0.11.1.0 && < 1.3
                      , time                   < 1.12
   hs-source-dirs:      src
