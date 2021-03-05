@@ -28,6 +28,10 @@ module Podman.Client
     podmanPost,
     podmanPut,
     podmanDelete,
+    podmanStream,
+
+    -- * Re-Export
+    Connection (..),
   )
 where
 
@@ -41,6 +45,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Network.HTTP.Client
   ( Manager,
+    Request,
     RequestBody (..),
     brConsume,
     checkResponse,
@@ -56,7 +61,15 @@ import Network.HTTP.Client
     responseStatus,
     setQueryString,
     socketConnection,
+    withConnection,
     withResponse,
+  )
+import Network.HTTP.Client.Internal
+  ( Connection (..),
+    StatusHeaders (..),
+    connectionReadLine,
+    parseStatusHeaders,
+    requestBuilder,
   )
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.HTTP.Types.Status (Status (..))
@@ -126,6 +139,35 @@ encodeQueryParam name = \case
     toQueryValue (QInt x) = pack . show $ x
     toQueryValue (QText t) = T.encodeUtf8 t
 
+withQs :: QueryArgs -> Request -> Request
+withQs args = case concatMap (uncurry encodeQueryParam) args of
+  [] -> id
+  qs -> setQueryString qs
+
+podmanStream :: MonadIO m => PodmanClient -> Verb -> Path -> QueryArgs -> (Connection -> IO a) -> m (Result a)
+podmanStream client verb (Path path) args cb = liftIO $ do
+  initRequest <- parseUrlThrow (T.unpack (baseUrl client <> path))
+  withConnection initRequest (manager client) (initConn initRequest)
+  where
+    initConn initRequest conn = do
+      -- Note: "Connection: Upgrade" is missing, that might break in the future
+      let req = withQs args (initRequest {method = verb})
+      -- print $ "Sending: " <> show req
+      check <- requestBuilder req conn
+      case check of
+        Just _ -> error (T.unpack path <> ": received expect continue")
+        Nothing -> pure ()
+      StatusHeaders status _version _headers <- parseStatusHeaders conn Nothing Nothing
+      case statusCode status of
+        200 -> do
+          -- Note: api returned 200, that might break in the future, it should be 101
+          Right <$> cb conn
+        _ -> do
+          body' <- connectionRead conn
+          case eitherDecodeStrict body' of
+            Right x -> pure (Left x)
+            Left x -> error (show x)
+
 podmanReq :: (MonadIO m, ToJSON a, FromJSON b) => PodmanClient -> Verb -> Body a -> Path -> QueryArgs -> m (ResultB b)
 podmanReq client verb body (Path path) args = do
   initRequest <- liftIO $ parseUrlThrow (T.unpack (baseUrl client <> path))
@@ -141,7 +183,7 @@ podmanReq client verb body (Path path) args = do
         Raw bs -> request' {requestBody = RequestBodyBS bs}
         NoBody -> request'
   liftIO $
-    withResponse (withQs request) (manager client) $ \response -> do
+    withResponse (withQs args request) (manager client) $ \response -> do
       let Status code _ = responseStatus response
       body' <- mconcat <$> brConsume (responseBody response)
       pure $
@@ -158,9 +200,6 @@ podmanReq client verb body (Path path) args = do
       Right x -> Right (Just (Json x))
       Left x -> error (show x)
     decodeBody _ body' = Right (Just (Raw body'))
-    withQs = case concatMap (uncurry encodeQueryParam) args of
-      [] -> id
-      qs -> setQueryString qs
 
 -- | Raise an exception if there is a result
 withoutResult :: ResultM (Body Value) -> Maybe Error

@@ -98,7 +98,8 @@ queryTypes :: [(Text, Name, PathItem -> Maybe Operation)]
 queryTypes =
   [ ("/libpod/containers/json", "ContainerListQuery", _pathItemGet),
     ("/libpod/generate/{name:.*}/systemd", "GenerateSystemdQuery", _pathItemGet),
-    ("/images/json", "ImageListQuery", _pathItemGet)
+    ("/images/json", "ImageListQuery", _pathItemGet),
+    ("/libpod/containers/{name}/attach", "AttachQuery", _pathItemPost)
   ]
 
 -- | In body data types
@@ -402,6 +403,7 @@ renderInput it name Operation {..} =
       "GenerateSystemdQuery" -> 8
       "ImageListQuery" -> 2
       "ExecConfig" -> 10
+      "AttachQuery" -> 6
     getBody ((Inline x) : xs) = case _paramSchema x of
       ParamBody (Inline s) -> s
       _ -> getBody xs
