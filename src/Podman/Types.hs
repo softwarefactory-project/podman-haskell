@@ -52,6 +52,8 @@ module Podman.Types
     defaultGenerateSystemdQuery,
     ImageListQuery (..),
     defaultImageListQuery,
+    AttachQuery (..),
+    defaultAttachQuery,
 
     -- * Bodies
     ExecConfig (..),
@@ -999,6 +1001,33 @@ instance ToJSON ImageListQuery where
 -- | An empty 'ImageListQuery'
 defaultImageListQuery :: ImageListQuery
 defaultImageListQuery = ImageListQuery Nothing Nothing
+
+-- | Attach to a container parameters
+data AttachQuery = AttachQuery
+  { -- | keys to use for detaching from the container.
+    _attachQuerydetachKeys :: Maybe Text,
+    -- | Stream all logs from the container across the connection.
+    _attachQuerylogs :: Maybe Bool,
+    -- | Attach to the container.
+    _attachQuerystream :: Maybe Bool,
+    -- | Attach to container STDOUT.
+    _attachQuerystdout :: Maybe Bool,
+    -- | Attach to container STDERR.
+    _attachQuerystderr :: Maybe Bool,
+    -- | Attach to container STDIN.
+    _attachQuerystdin :: Maybe Bool
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON AttachQuery where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 12, omitNothingFields = True})
+
+instance ToJSON AttachQuery where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 12, omitNothingFields = True})
+
+-- | An empty 'AttachQuery'
+defaultAttachQuery :: AttachQuery
+defaultAttachQuery = AttachQuery Nothing Nothing Nothing Nothing Nothing Nothing
 
 -- | Create an exec instance parameters
 data ExecConfig = ExecConfig
