@@ -496,7 +496,7 @@ data ListContainer = ListContainer
     -- | The unique identifier for the container.
     _listContainerId :: Text,
     -- | Labels for container.
-    _listContainerLabels :: M.Map Text Text,
+    _listContainerLabels :: Maybe (M.Map Text Text),
     -- | If container has exited, the return code from the command.
     _listContainerExitCode :: Int32,
     -- | If the container is part of Pod, the Pod ID.

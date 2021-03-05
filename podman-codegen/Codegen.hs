@@ -183,6 +183,7 @@ isOptional "listContainer" = \case
   "Networks" -> True
   "Ports" -> True
   "Pod" -> True
+  "Labels" -> True
   _ -> False
 isOptional "execConfig" = \case
   "Cmd" -> False
