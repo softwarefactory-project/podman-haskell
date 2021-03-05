@@ -32,3 +32,5 @@ executable podman-quickcheck
                      , podman
                      , quickcheck-text
                      , text
+                     , bytestring
+                     , async

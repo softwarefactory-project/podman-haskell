@@ -24,6 +24,9 @@ module Podman.Api
     containerKill,
     containerSendFiles,
     containerGetFiles,
+    containerAttach,
+    ContainerConnection (..),
+    ContainerOutput (..),
 
     -- * Exec
     execCreate,
@@ -58,6 +61,7 @@ where
 
 import qualified Codec.Archive.Tar as Tar
 import Control.Monad.IO.Class (MonadIO (..))
+import qualified Data.Binary.Get as B
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as LBS
 import Data.Map (Map)
@@ -205,6 +209,64 @@ containerDelete client (ContainerName name) force volume =
   withoutResult <$> podmanDelete client (Path ("v1/libpod/containers/" <> name)) qs
   where
     qs = [("force", QBool <$> force), ("v", QBool <$> volume)]
+
+-- | A container output
+data ContainerOutput = EOF | Stdout ByteString | Stderr ByteString
+  deriving stock (Eq, Show)
+
+getContainerOutput :: B.Get ContainerOutput
+getContainerOutput = do
+  -- see podman util.go makeHTTPAttachHeader
+  t <- B.getWord32le
+  sz <- B.getWord32be
+  msg <- B.getByteString (fromIntegral sz)
+  pure $ case t of
+    1 -> Stdout msg
+    2 -> Stderr msg
+    _ -> error ("Unknown output type: " <> show t)
+
+-- | A connection attached to a container.
+-- Note that full-duplex communication may require async threads because the http-client doesn't seems to expose aio
+-- (e.g. Connection doesn't have a fd, only a recv call)
+data ContainerConnection = ContainerConnection
+  { containerRead :: IO ContainerOutput,
+    containerSend :: ByteString -> IO ()
+  }
+
+-- | Hijacks the connection to forward the container's standard streams to the client.
+containerAttach ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The container name
+  ContainerName ->
+  -- | The attach query, uses 'defaultAttachQuery'
+  AttachQuery ->
+  -- | The callback
+  (ContainerConnection -> IO a) ->
+  m (Result a)
+containerAttach client (ContainerName name) AttachQuery {..} cb = do
+  podmanStream client "POST" (Path ("v1/libpod/containers/" <> name <> "/attach")) qs (cb . cc)
+  where
+    cc :: Connection -> ContainerConnection
+    cc conn = ContainerConnection (cr conn) (connectionWrite conn)
+    cr :: Connection -> IO ContainerOutput
+    cr conn = do
+      buf <- connectionRead conn
+      case buf of
+        "" -> pure EOF
+        _ -> do
+          -- liftIO $ print buf
+          -- TODO: read more when the buffer is too small
+          pure $ B.runGet getContainerOutput (LBS.fromStrict buf)
+    qs =
+      [ ("detachKeys", QText <$> _attachQuerydetachKeys),
+        ("logs", QBool <$> _attachQuerylogs),
+        ("stream", QBool <$> _attachQuerystream),
+        ("stdout", QBool <$> _attachQuerystdout),
+        ("stderr", QBool <$> _attachQuerystderr),
+        ("stdin", QBool <$> _attachQuerystdin)
+      ]
 
 -- | Generate a Kubernetes YAML file.
 generateKubeYAML ::

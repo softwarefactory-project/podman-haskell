@@ -47,6 +47,7 @@ common common-options
 library
   import:              common-options
   build-depends:       aeson                  >= 1.0.0.0  && < 1.6
+                     , binary                 < 0.9
                      , bytestring             < 0.12
                      , containers             < 0.7
                      , http-client            >= 0.5.0    && < 0.8
