@@ -349,6 +349,7 @@ renderDeriving name = do
         [ "(defaultOptions {",
           "fieldLabelModifier = drop",
           T.pack (show (1 + T.length name)),
+          ", omitNothingFields = True",
           "})"
         ]
 
@@ -474,7 +475,7 @@ renderTypes Swagger {..} = go
       mapM_ goExportCtor defSmartCtor
       tell "  ) where"
       line ""
-      line "import Data.Aeson (FromJSON (..), Options (fieldLabelModifier), ToJSON (..), Value (String), defaultOptions, genericParseJSON, genericToJSON, withText)"
+      line "import Data.Aeson (FromJSON (..), Options (fieldLabelModifier, omitNothingFields), ToJSON (..), Value (String), defaultOptions, genericParseJSON, genericToJSON, withText)"
       line "import Data.Text (Text)"
       line "import Data.Time.Clock (UTCTime)"
       line "import qualified Data.Map as M"

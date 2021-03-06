@@ -62,7 +62,7 @@ module Podman.Types
   )
 where
 
-import Data.Aeson (FromJSON (..), Options (fieldLabelModifier), ToJSON (..), Value (String), defaultOptions, genericParseJSON, genericToJSON, withText)
+import Data.Aeson (FromJSON (..), Options (fieldLabelModifier, omitNothingFields), ToJSON (..), Value (String), defaultOptions, genericParseJSON, genericToJSON, withText)
 import qualified Data.Map as M
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -121,10 +121,10 @@ newtype ExecResponse = ExecResponse
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON ExecResponse where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 13})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 13, omitNothingFields = True})
 
 instance ToJSON ExecResponse where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 13})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 13, omitNothingFields = True})
 
 newtype SecretCreateResponse = SecretCreateResponse
   { _secretCreateResponseID :: Text
@@ -132,10 +132,10 @@ newtype SecretCreateResponse = SecretCreateResponse
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON SecretCreateResponse where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 21})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 21, omitNothingFields = True})
 
 instance ToJSON SecretCreateResponse where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 21})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 21, omitNothingFields = True})
 
 -- | A type safe wrapper for [Word8]
 newtype IP = IP [Word8]
@@ -164,10 +164,10 @@ data Error = Error
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON Error where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 6})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 6, omitNothingFields = True})
 
 instance ToJSON Error where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 6})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 6, omitNothingFields = True})
 
 -- | The API Version information
 data Version = Version
@@ -177,10 +177,10 @@ data Version = Version
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON Version where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 8})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 8, omitNothingFields = True})
 
 instance ToJSON Version where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 8})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 8, omitNothingFields = True})
 
 -- | InspectContainerState provides a detailed record of a container's current
 -- state. It is returned as part of InspectContainerData.
@@ -205,10 +205,10 @@ data InspectContainerState = InspectContainerState
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON InspectContainerState where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 22})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 22, omitNothingFields = True})
 
 instance ToJSON InspectContainerState where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 22})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 22, omitNothingFields = True})
 
 -- | InspectContainerConfig holds further data about how a container was initially
 -- configured.
@@ -259,10 +259,10 @@ data InspectContainerConfig = InspectContainerConfig
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON InspectContainerConfig where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 23})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 23, omitNothingFields = True})
 
 instance ToJSON InspectContainerConfig where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 23})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 23, omitNothingFields = True})
 
 -- | SpecGenerator creates an OCI spec and Libpod configuration options to create
 -- a container based on the given configuration.
@@ -433,10 +433,10 @@ data SpecGenerator = SpecGenerator
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON SpecGenerator where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 14})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 14, omitNothingFields = True})
 
 instance ToJSON SpecGenerator where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 14})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 14, omitNothingFields = True})
 
 -- | PortMapping is one or more ports that will be mapped into the container.
 data PortMapping = PortMapping
@@ -454,10 +454,10 @@ data PortMapping = PortMapping
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON PortMapping where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 12})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 12, omitNothingFields = True})
 
 instance ToJSON PortMapping where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 12})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 12, omitNothingFields = True})
 
 -- | Listcontainer describes a container suitable for listing
 data ListContainer = ListContainer
@@ -509,10 +509,10 @@ data ListContainer = ListContainer
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON ListContainer where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 14})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 14, omitNothingFields = True})
 
 instance ToJSON ListContainer where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 14})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 14, omitNothingFields = True})
 
 -- | ListContainer Namespaces contains the identifiers of the container's Linux namespaces
 data ListContainerNamespaces = ListContainerNamespaces
@@ -534,10 +534,10 @@ data ListContainerNamespaces = ListContainerNamespaces
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON ListContainerNamespaces where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 24})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 24, omitNothingFields = True})
 
 instance ToJSON ListContainerNamespaces where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 24})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 24, omitNothingFields = True})
 
 -- | ContainerSize holds the size of the container's root filesystem and top
 -- read-write layer.
@@ -548,10 +548,10 @@ data ContainerSize = ContainerSize
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON ContainerSize where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 14})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 14, omitNothingFields = True})
 
 instance ToJSON ContainerSize where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 14})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 14, omitNothingFields = True})
 
 -- | Mount specifies a mount for a container.
 data Mount = Mount
@@ -567,10 +567,10 @@ data Mount = Mount
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON Mount where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 6})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 6, omitNothingFields = True})
 
 instance ToJSON Mount where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 6})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 6, omitNothingFields = True})
 
 -- | Namespace describes the namespace
 data Namespace = Namespace
@@ -580,10 +580,10 @@ data Namespace = Namespace
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON Namespace where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 10})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 10, omitNothingFields = True})
 
 instance ToJSON Namespace where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 10})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 10, omitNothingFields = True})
 
 -- | LinuxDevice represents the mknod information for a Linux special device file
 data LinuxDevice = LinuxDevice
@@ -604,10 +604,10 @@ data LinuxDevice = LinuxDevice
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON LinuxDevice where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 12})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 12, omitNothingFields = True})
 
 instance ToJSON LinuxDevice where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 12})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 12, omitNothingFields = True})
 
 -- | NamedVolume holds information about a named volume that will be mounted into
 -- the container.
@@ -622,10 +622,10 @@ data NamedVolume = NamedVolume
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON NamedVolume where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 12})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 12, omitNothingFields = True})
 
 instance ToJSON NamedVolume where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 12})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 12, omitNothingFields = True})
 
 -- | ImageVolume is a volume based on a container image.  The container image is
 -- first mounted on the host and is then bind-mounted into the container.  An
@@ -641,10 +641,10 @@ data ImageVolume = ImageVolume
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON ImageVolume where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 12})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 12, omitNothingFields = True})
 
 instance ToJSON ImageVolume where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 12})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 12, omitNothingFields = True})
 
 -- | LogConfig describes the logging characteristics for a container
 data LogConfig = LogConfig
@@ -660,10 +660,10 @@ data LogConfig = LogConfig
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON LogConfig where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 10})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 10, omitNothingFields = True})
 
 instance ToJSON LogConfig where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 10})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 10, omitNothingFields = True})
 
 -- | OverlayVolume holds information about a overlay volume that will be mounted into
 -- the container.
@@ -678,10 +678,10 @@ data OverlayVolume = OverlayVolume
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON OverlayVolume where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 14})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 14, omitNothingFields = True})
 
 instance ToJSON OverlayVolume where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 14})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 14, omitNothingFields = True})
 
 -- | ImageSummary image summary
 data ImageSummary = ImageSummary
@@ -709,10 +709,10 @@ data ImageSummary = ImageSummary
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON ImageSummary where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 13})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 13, omitNothingFields = True})
 
 instance ToJSON ImageSummary where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 13})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 13, omitNothingFields = True})
 
 data ImageTreeResponse = ImageTreeResponse
   { _imageTreeResponseTree :: Text,
@@ -721,10 +721,10 @@ data ImageTreeResponse = ImageTreeResponse
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON ImageTreeResponse where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 18})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 18, omitNothingFields = True})
 
 instance ToJSON ImageTreeResponse where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 18})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 18, omitNothingFields = True})
 
 -- | DNS contains values interesting for DNS resolvers
 data Dns = Dns
@@ -736,10 +736,10 @@ data Dns = Dns
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON Dns where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 4})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 4, omitNothingFields = True})
 
 instance ToJSON Dns where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 4})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 4, omitNothingFields = True})
 
 -- | NetConf describes a network.
 data NetConf = NetConf
@@ -753,10 +753,10 @@ data NetConf = NetConf
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON NetConf where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 8})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 8, omitNothingFields = True})
 
 instance ToJSON NetConf where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 8})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 8, omitNothingFields = True})
 
 data NetworkConfig = NetworkConfig
   { _networkConfigNetwork :: NetConf,
@@ -765,10 +765,10 @@ data NetworkConfig = NetworkConfig
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON NetworkConfig where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 14})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 14, omitNothingFields = True})
 
 instance ToJSON NetworkConfig where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 14})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 14, omitNothingFields = True})
 
 -- | NetworkListReport describes the results from listing networks
 data NetworkListReport = NetworkListReport
@@ -782,10 +782,10 @@ data NetworkListReport = NetworkListReport
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON NetworkListReport where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 18})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 18, omitNothingFields = True})
 
 instance ToJSON NetworkListReport where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 18})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 18, omitNothingFields = True})
 
 -- | Volume volume
 data Volume = Volume
@@ -810,10 +810,10 @@ data Volume = Volume
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON Volume where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 7})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 7, omitNothingFields = True})
 
 instance ToJSON Volume where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 7})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 7, omitNothingFields = True})
 
 -- | VolumeUsageData Usage details about the volume. This information is used by the
 -- `GET /system/df` endpoint, and omitted in other endpoints.
@@ -826,10 +826,10 @@ data VolumeUsageData = VolumeUsageData
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON VolumeUsageData where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 16})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 16, omitNothingFields = True})
 
 instance ToJSON VolumeUsageData where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 16})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 16, omitNothingFields = True})
 
 data SecretInfoReport = SecretInfoReport
   { _secretInfoReportCreatedAt :: UTCTime,
@@ -840,10 +840,10 @@ data SecretInfoReport = SecretInfoReport
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON SecretInfoReport where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 17})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 17, omitNothingFields = True})
 
 instance ToJSON SecretInfoReport where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 17})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 17, omitNothingFields = True})
 
 data SecretSpec = SecretSpec
   { _secretSpecDriver :: SecretDriverSpec,
@@ -852,10 +852,10 @@ data SecretSpec = SecretSpec
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON SecretSpec where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 11})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 11, omitNothingFields = True})
 
 instance ToJSON SecretSpec where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 11})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 11, omitNothingFields = True})
 
 data SecretDriverSpec = SecretDriverSpec
   { _secretDriverSpecName :: Text,
@@ -864,10 +864,10 @@ data SecretDriverSpec = SecretDriverSpec
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON SecretDriverSpec where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 17})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 17, omitNothingFields = True})
 
 instance ToJSON SecretDriverSpec where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 17})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 17, omitNothingFields = True})
 
 data InspectContainerResponse = InspectContainerResponse
   { _inspectContainerResponseEffectiveCaps :: [LinuxCapability],
@@ -906,10 +906,10 @@ data InspectContainerResponse = InspectContainerResponse
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON InspectContainerResponse where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 25})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 25, omitNothingFields = True})
 
 instance ToJSON InspectContainerResponse where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 25})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 25, omitNothingFields = True})
 
 data ContainerCreateResponse = ContainerCreateResponse
   { -- | Warnings during container creation.
@@ -920,10 +920,10 @@ data ContainerCreateResponse = ContainerCreateResponse
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON ContainerCreateResponse where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 24})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 24, omitNothingFields = True})
 
 instance ToJSON ContainerCreateResponse where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 24})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 24, omitNothingFields = True})
 
 -- | List containers parameters
 data ContainerListQuery = ContainerListQuery
@@ -941,10 +941,10 @@ data ContainerListQuery = ContainerListQuery
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON ContainerListQuery where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 19})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 19, omitNothingFields = True})
 
 instance ToJSON ContainerListQuery where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 19})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 19, omitNothingFields = True})
 
 -- | An empty 'ContainerListQuery'
 defaultContainerListQuery :: ContainerListQuery
@@ -972,10 +972,10 @@ data GenerateSystemdQuery = GenerateSystemdQuery
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON GenerateSystemdQuery where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 21})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 21, omitNothingFields = True})
 
 instance ToJSON GenerateSystemdQuery where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 21})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 21, omitNothingFields = True})
 
 -- | An empty 'GenerateSystemdQuery'
 defaultGenerateSystemdQuery :: GenerateSystemdQuery
@@ -991,10 +991,10 @@ data ImageListQuery = ImageListQuery
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON ImageListQuery where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 15})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 15, omitNothingFields = True})
 
 instance ToJSON ImageListQuery where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 15})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 15, omitNothingFields = True})
 
 -- | An empty 'ImageListQuery'
 defaultImageListQuery :: ImageListQuery
@@ -1026,10 +1026,10 @@ data ExecConfig = ExecConfig
   deriving stock (Show, Eq, Generic)
 
 instance FromJSON ExecConfig where
-  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 11})
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 11, omitNothingFields = True})
 
 instance ToJSON ExecConfig where
-  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 11})
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 11, omitNothingFields = True})
 
 -- | Creates a 'SpecGenerator' by setting all the optional attributes to Nothing
 mkSpecGenerator ::
