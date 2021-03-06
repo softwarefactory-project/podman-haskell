@@ -86,9 +86,9 @@ withClient ::
   -- | The api url, can be @\"http+unix:\/\/var\/run\/podman.sock\"@ or @\"https:\/\/localhost:9000\"@
   Text ->
   -- | The callback
-  (PodmanClient -> m ()) ->
+  (PodmanClient -> m a) ->
   -- | withClient performs the IO
-  m ()
+  m a
 withClient url callback = do
   man <- liftIO $ newManager settings
   callback (PodmanClient baseUrl' man)

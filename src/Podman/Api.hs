@@ -26,6 +26,8 @@ module Podman.Api
     containerGetFiles,
     containerAttach,
     containerChanges,
+    containerExport,
+    containerInitialize,
     ContainerConnection (..),
     ContainerOutput (..),
 
@@ -279,6 +281,31 @@ containerChanges ::
   m (Result [ContainerChange])
 containerChanges client (ContainerName name) =
   withResult <$> podmanGet client (Path ("v1/libpod/containers/" <> name <> "/changes")) mempty
+
+-- | Export the contents of a container as a tarball.
+containerExport ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The container name
+  ContainerName ->
+  m (Result (Tar.Entries Tar.FormatError))
+containerExport client (ContainerName name) = do
+  res <- withRaw <$> podmanGet client (Path ("v1/libpod/containers/" <> name <> "/export")) mempty
+  pure $ case res of
+    Left err -> Left err
+    Right bs -> Right (Tar.read $ LBS.fromStrict bs)
+
+-- | Performs all tasks necessary for initializing the container but does not start the container.
+containerInitialize ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The container name
+  ContainerName ->
+  m (Maybe Error)
+containerInitialize client (ContainerName name) =
+  withoutResult <$> podmanPost client emptyBody (Path ("v1/libpod/containers/" <> name <> "/init")) mempty
 
 -- | Generate a Kubernetes YAML file.
 generateKubeYAML ::
