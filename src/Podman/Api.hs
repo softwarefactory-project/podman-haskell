@@ -25,6 +25,7 @@ module Podman.Api
     containerSendFiles,
     containerGetFiles,
     containerAttach,
+    containerChanges,
     ContainerConnection (..),
     ContainerOutput (..),
 
@@ -267,6 +268,17 @@ containerAttach client (ContainerName name) AttachQuery {..} cb = do
         ("stderr", QBool <$> _attachQuerystderr),
         ("stdin", QBool <$> _attachQuerystdin)
       ]
+
+-- | Report on changes to container's filesystem; adds, deletes or modifications.
+containerChanges ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The container name
+  ContainerName ->
+  m (Result [ContainerChange])
+containerChanges client (ContainerName name) =
+  withResult <$> podmanGet client (Path ("v1/libpod/containers/" <> name <> "/changes")) mempty
 
 -- | Generate a Kubernetes YAML file.
 generateKubeYAML ::

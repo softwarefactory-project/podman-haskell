@@ -66,6 +66,7 @@ defTypes =
     "ImageSummary",
     -- TODO: use response types when fixed
     "LibpodImageTreeResponse",
+    "ContainerChange",
     -- networks
     "DNS",
     "NetConf",
@@ -84,7 +85,7 @@ defTypes =
 responseTypes = ["LibpodInspectContainerResponse", "ContainerCreateResponse"]
 
 -- | Provided data types
-extraTypes = ["LinuxCapability", "SystemdRestartPolicy", "ExecResponse", "SecretCreateResponse"]
+extraTypes = ["LinuxCapability", "SystemdRestartPolicy", "ExecResponse", "SecretCreateResponse", "ContainerChangeKind"]
 
 -- | Smart constructors
 defSmartCtor = ["SpecGenerator", "ExecConfig"]
@@ -126,6 +127,7 @@ hardcodedTypes "networkConfig" "Bytes" = Just "Text"
 hardcodedTypes "networkListReport" "Bytes" = Just "Text"
 -- TODO: generate proper type by using the `additionalProperties: {type: boolean}`
 hardcodedTypes "netConf" "capabilities" = Just "Maybe (M.Map Text Bool)"
+hardcodedTypes "containerChange" "_Kind" = Just "ContainerChangeKind"
 -- Better type: https://github.com/containers/podman/pull/9558
 hardcodedTypes "volume" "CreatedAt" = Just "UTCTime"
 hardcodedTypes "specGenerator" aname = case aname of
@@ -229,6 +231,13 @@ instance ToJSON Version
 
 instance ToSchema Version
 
+-- TODO: report missing type
+data ContainerChange = Containerchange {_Path :: Text, _Kind :: Int} deriving stock (Generic)
+
+instance ToJSON ContainerChange
+
+instance ToSchema ContainerChange
+
 -- TODO: report that mismatch
 data LibpodImageTreeResponse = LibpodImageTreeResponse {_Tree :: Text, layers :: Maybe [Text]}
   deriving stock (Generic)
@@ -242,8 +251,9 @@ fixSchema s@Swagger {..} = s {_swaggerDefinitions = newDef}
   where
     newDef =
       M.insert "LibpodImageTreeResponse" (toSchema (Proxy :: Proxy LibpodImageTreeResponse)) $
-        M.insert "Version" (toSchema (Proxy :: Proxy Version)) $
-          M.insert "Error" (toSchema (Proxy :: Proxy Error)) _swaggerDefinitions
+        M.insert "ContainerChange" (toSchema (Proxy :: Proxy ContainerChange)) $
+          M.insert "Version" (toSchema (Proxy :: Proxy Version)) $
+            M.insert "Error" (toSchema (Proxy :: Proxy Error)) _swaggerDefinitions
 
 -------------------------------------------------------------------------------
 -- OpenAPI to Haskell
@@ -477,7 +487,7 @@ renderTypes Swagger {..} = go
       mapM_ goExportCtor defSmartCtor
       tell "  ) where"
       line ""
-      line "import Data.Aeson (FromJSON (..), Options (fieldLabelModifier, omitNothingFields), ToJSON (..), Value (String), defaultOptions, genericParseJSON, genericToJSON, withText)"
+      line "import Data.Aeson (FromJSON (..), Options (fieldLabelModifier, omitNothingFields), ToJSON (..), Value (String, Number), defaultOptions, genericParseJSON, genericToJSON, withText, withScientific)"
       line "import Data.Text (Text)"
       line "import Data.Time.Clock (UTCTime)"
       line "import qualified Data.Map as M"
@@ -490,6 +500,7 @@ renderTypes Swagger {..} = go
       linuxCap
       systemdPolicy
       execResp
+      containerChange
       mapM_ renderNewType newTypes
       mapM_ goDef defTypes
       mapM_ goResp responseTypes
@@ -521,6 +532,21 @@ renderTypes Swagger {..} = go
       Just def -> renderSchema (adaptName name) def
       _ -> error ("Unknown def: " <> T.unpack name)
     goSmart name = renderCtor (adaptName name) undefined
+    containerChange = do
+      line "data ContainerChangeKind = Modified | Added | Deleted deriving stock (Show, Eq, Generic)"
+      line ""
+      line "instance ToJSON ContainerChangeKind where"
+      line "  toJSON Modified = Number 0"
+      line "  toJSON Added = Number 1"
+      line "  toJSON Deleted = Number 2"
+      line ""
+      line "instance FromJSON ContainerChangeKind where"
+      line "  parseJSON = withScientific \"change\" $ \\num -> pure $ case num of"
+      line "    0 -> Modified"
+      line "    1 -> Added"
+      line "    2 -> Deleted"
+      line "    x -> error (\"Unknown change kind \" <> show x)"
+      line ""
     linuxCap = do
       -- Define Aeson instances for Capability using a newtype
       line "newtype LinuxCapability = LinuxCapability Capability deriving newtype (Eq, Show)"

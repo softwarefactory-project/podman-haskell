@@ -10,6 +10,7 @@ module Podman.Types
     SystemdRestartPolicy (..),
     ExecResponse (..),
     SecretCreateResponse (..),
+    ContainerChangeKind (..),
 
     -- * Responses
     IP (..),
@@ -33,6 +34,7 @@ module Podman.Types
     OverlayVolume (..),
     ImageSummary (..),
     ImageTreeResponse (..),
+    ContainerChange (..),
     Dns (..),
     NetConf (..),
     NetworkConfig (..),
@@ -64,7 +66,7 @@ module Podman.Types
   )
 where
 
-import Data.Aeson (FromJSON (..), Options (fieldLabelModifier, omitNothingFields), ToJSON (..), Value (String), defaultOptions, genericParseJSON, genericToJSON, withText)
+import Data.Aeson (FromJSON (..), Options (fieldLabelModifier, omitNothingFields), ToJSON (..), Value (Number, String), defaultOptions, genericParseJSON, genericToJSON, withScientific, withText)
 import qualified Data.Map as M
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -138,6 +140,20 @@ instance FromJSON SecretCreateResponse where
 
 instance ToJSON SecretCreateResponse where
   toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 21, omitNothingFields = True})
+
+data ContainerChangeKind = Modified | Added | Deleted deriving stock (Show, Eq, Generic)
+
+instance ToJSON ContainerChangeKind where
+  toJSON Modified = Number 0
+  toJSON Added = Number 1
+  toJSON Deleted = Number 2
+
+instance FromJSON ContainerChangeKind where
+  parseJSON = withScientific "change" $ \num -> pure $ case num of
+    0 -> Modified
+    1 -> Added
+    2 -> Deleted
+    x -> error ("Unknown change kind " <> show x)
 
 -- | A type safe wrapper for [Word8]
 newtype IP = IP [Word8]
@@ -727,6 +743,18 @@ instance FromJSON ImageTreeResponse where
 
 instance ToJSON ImageTreeResponse where
   toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 18, omitNothingFields = True})
+
+data ContainerChange = ContainerChange
+  { _containerChangePath :: Text,
+    _containerChangeKind :: ContainerChangeKind
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON ContainerChange where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 16, omitNothingFields = True})
+
+instance ToJSON ContainerChange where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 16, omitNothingFields = True})
 
 -- | DNS contains values interesting for DNS resolvers
 data Dns = Dns
