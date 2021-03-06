@@ -19,6 +19,7 @@ module Podman.Api
     containerList,
     containerCreate,
     mkSpecGenerator,
+    containerStart,
     containerDelete,
     containerKill,
     containerSendFiles,
@@ -119,6 +120,11 @@ containerList client ContainerListQuery {..} = do
 -- | Create a container
 containerCreate :: MonadIO m => PodmanClient -> SpecGenerator -> m (Result ContainerCreateResponse)
 containerCreate client spec = withResult <$> podmanPost client (Json spec) (Path "v1/libpod/containers/create") mempty
+
+-- | Start a container
+containerStart :: MonadIO m => PodmanClient -> ContainerName -> Maybe Text -> m (Maybe Error)
+containerStart client (ContainerName name) _escapeSeq =
+  withoutResult <$> podmanPost client emptyBody (Path $ "v1/libpod/containers/" <> name <> "/start") mempty
 
 -- | Copy a tar archive of files into a container
 containerSendFiles ::
