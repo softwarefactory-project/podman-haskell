@@ -56,6 +56,8 @@ module Podman.Types
     defaultImageListQuery,
     AttachQuery (..),
     defaultAttachQuery,
+    LogsQuery (..),
+    defaultLogsQuery,
 
     -- * Bodies
     ExecConfig (..),
@@ -1056,6 +1058,31 @@ instance ToJSON AttachQuery where
 -- | An empty 'AttachQuery'
 defaultAttachQuery :: AttachQuery
 defaultAttachQuery = AttachQuery Nothing Nothing Nothing Nothing Nothing Nothing
+
+-- | Get container logs parameters
+data LogsQuery = LogsQuery
+  { -- | Keep connection after returning logs.
+    _logsQueryfollow :: Maybe Bool,
+    -- | Only return logs since this time, as a UNIX timestamp.
+    _logsQuerysince :: Maybe UTCTime,
+    -- | Only return logs before this time, as a UNIX timestamp.
+    _logsQueryuntil :: Maybe UTCTime,
+    -- | Add timestamps to every log line.
+    _logsQuerytimestamps :: Maybe Bool,
+    -- | Only return this number of log lines from the end of the logs.
+    _logsQuerytail :: Maybe Word64
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON LogsQuery where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 10, omitNothingFields = True})
+
+instance ToJSON LogsQuery where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 10, omitNothingFields = True})
+
+-- | An empty 'LogsQuery'
+defaultLogsQuery :: LogsQuery
+defaultLogsQuery = LogsQuery Nothing Nothing Nothing Nothing Nothing
 
 -- | Create an exec instance parameters
 data ExecConfig = ExecConfig

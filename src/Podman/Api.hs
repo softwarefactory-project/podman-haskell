@@ -26,8 +26,10 @@ module Podman.Api
     containerGetFiles,
     containerAttach,
     containerChanges,
-    containerExport,
     containerInitialize,
+    containerExport,
+    containerLogs,
+    LogStream (..),
     ContainerConnection (..),
     ContainerOutput (..),
 
@@ -249,7 +251,7 @@ containerAttach ::
   (ContainerConnection -> IO a) ->
   m (Result a)
 containerAttach client (ContainerName name) AttachQuery {..} cb = do
-  podmanStream client "POST" (Path ("v1/libpod/containers/" <> name <> "/attach")) qs (cb . cc)
+  podmanConn client "POST" (Path ("v1/libpod/containers/" <> name <> "/attach")) qs (cb . cc)
   where
     cc :: Connection -> ContainerConnection
     cc conn = ContainerConnection (cr conn) (connectionWrite conn)
@@ -295,6 +297,55 @@ containerExport client (ContainerName name) = do
   pure $ case res of
     Left err -> Left err
     Right bs -> Right (Tar.read $ LBS.fromStrict bs)
+
+-- | Get stdout and stderr logs from a container.
+data LogStream = LogStdout | LogStderr | LogBoth deriving stock (Show, Eq)
+
+containerLogs ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The container name
+  ContainerName ->
+  -- | The log to stream
+  LogStream ->
+  -- | The logs query, use 'defaultLogsQuery'
+  LogsQuery ->
+  -- | The callback
+  (ContainerOutput -> IO ()) ->
+  m (Maybe Error)
+containerLogs client (ContainerName name) streams LogsQuery {..} cb = do
+  x <- podmanStream client "GET" (Path ("v1/libpod/containers/" <> name <> "/logs")) qs (cc "")
+  pure $ case x of
+    Left err -> Just err
+    Right _ -> Nothing
+  where
+    cc :: LBS.ByteString -> IO ByteString -> IO ()
+    cc acc conn = do
+      -- get a chunk from the connection stream
+      buf <- mappend acc . LBS.fromStrict <$> conn
+      case buf of
+        "" -> pure ()
+        _ -> do
+          -- try to decode the message, decode can fail if the chunk is incomplete
+          -- if it fail we loop again to get more data
+          rest <- case B.runGetOrFail getContainerOutput buf of
+            Left (_, _, _) -> pure buf
+            Right (rest', _, log') -> cb log' >> pure rest'
+          cc rest conn
+    (stdout, stderr) = case streams of
+      LogStdout -> (Just True, Just False)
+      LogStderr -> (Just False, Just True)
+      LogBoth -> (Just True, Just True)
+    qs =
+      [ ("since", qdate <$> _logsQuerysince),
+        ("until", qdate <$> _logsQueryuntil),
+        ("stderr", QBool <$> stderr),
+        ("stdout", QBool <$> stdout),
+        ("timestamps", QBool <$> _logsQuerytimestamps),
+        ("tail", QInt . fromIntegral <$> _logsQuerytail),
+        ("follow", QBool <$> _logsQueryfollow)
+      ]
 
 -- | Performs all tasks necessary for initializing the container but does not start the container.
 containerInitialize ::

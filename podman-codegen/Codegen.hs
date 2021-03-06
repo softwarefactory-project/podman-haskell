@@ -100,7 +100,8 @@ queryTypes =
   [ ("/libpod/containers/json", "ContainerListQuery", _pathItemGet),
     ("/libpod/generate/{name:.*}/systemd", "GenerateSystemdQuery", _pathItemGet),
     ("/images/json", "ImageListQuery", _pathItemGet),
-    ("/libpod/containers/{name}/attach", "AttachQuery", _pathItemPost)
+    ("/libpod/containers/{name}/attach", "AttachQuery", _pathItemPost),
+    ("/libpod/containers/{name}/logs", "LogsQuery", _pathItemGet)
   ]
 
 -- | In body data types
@@ -143,6 +144,10 @@ hardcodedTypes "namespace" "nsmode" =
 hardcodedTypes "generateSystemdQuery" "restartPolicy" =
   -- Use the provided SystemdRestartPolicy type
   Just "SystemdRestartPolicy"
+-- TODO: report better type
+hardcodedTypes "logsQuery" "since" = Just "UTCTime"
+hardcodedTypes "logsQuery" "until" = Just "UTCTime"
+hardcodedTypes "logsQuery" "tail" = Just "Word64"
 hardcodedTypes _ aname =
   -- Use type safe capability type instead of [Text]
   if "Caps" `T.isSuffixOf` aname then Just "[LinuxCapability]" else Nothing
@@ -204,6 +209,10 @@ skipTypes "imageListQuery" "digests" = True
 skipTypes _ "Healthcheck" = True
 skipTypes "inspectContainerConfig" "Volumes" = True
 skipTypes "inspectContainerConfig" "Timezone" = True
+-- this skip is legitimate because it is manged by the api function
+skipTypes "logsQuery" n
+  | n `elem` ["stdout", "stderr"] = True
+  | otherwise = False
 skipTypes _ n =
   n
     `elem` [ "Secrets",
@@ -415,6 +424,8 @@ renderInput it name Operation {..} =
       "ImageListQuery" -> 2
       "ExecConfig" -> 10
       "AttachQuery" -> 6
+      "LogsQuery" -> 5
+      x -> error ("Unknown record size: " <> show x)
     getBody ((Inline x) : xs) = case _paramSchema x of
       ParamBody (Inline s) -> s
       _ -> getBody xs

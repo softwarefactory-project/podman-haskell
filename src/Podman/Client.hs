@@ -17,6 +17,7 @@ module Podman.Client
     -- * Request helper
     Path (..),
     QueryValue (..),
+    qdate,
     withoutResult,
     withRaw,
     withResult,
@@ -29,6 +30,7 @@ module Podman.Client
     podmanPut,
     podmanDelete,
     podmanStream,
+    podmanConn,
 
     -- * Re-Export
     Connection (..),
@@ -43,11 +45,13 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import Data.Time.Clock (UTCTime)
 import Network.HTTP.Client
   ( Manager,
     Request,
     RequestBody (..),
     brConsume,
+    brRead,
     checkResponse,
     defaultManagerSettings,
     managerRawConnection,
@@ -122,8 +126,12 @@ data QueryValue
   = QBool Bool
   | QInt Int
   | QText Text
+  | QRaw ByteString
 
 type QueryArgs = [(ByteString, Maybe QueryValue)]
+
+qdate :: UTCTime -> QueryValue
+qdate = QRaw . LBS.toStrict . encode
 
 newtype Path = Path Text
 
@@ -137,14 +145,15 @@ encodeQueryParam name = \case
     toQueryValue (QBool x) = if x then "true" else "false"
     toQueryValue (QInt x) = pack . show $ x
     toQueryValue (QText t) = T.encodeUtf8 t
+    toQueryValue (QRaw x) = x
 
 withQs :: QueryArgs -> Request -> Request
 withQs args = case concatMap (uncurry encodeQueryParam) args of
   [] -> id
   qs -> setQueryString qs
 
-podmanStream :: MonadIO m => PodmanClient -> Verb -> Path -> QueryArgs -> (Connection -> IO a) -> m (Result a)
-podmanStream client verb (Path path) args cb = liftIO $ do
+podmanConn :: MonadIO m => PodmanClient -> Verb -> Path -> QueryArgs -> (Connection -> IO a) -> m (Result a)
+podmanConn client verb (Path path) args cb = liftIO $ do
   initRequest <- parseUrlThrow (T.unpack (baseUrl client <> path))
   withConnection initRequest (manager client) (initConn initRequest)
   where
@@ -165,6 +174,26 @@ podmanStream client verb (Path path) args cb = liftIO $ do
           body' <- connectionRead conn
           case eitherDecodeStrict body' of
             Right x -> pure (Left x)
+            Left x -> error (show x)
+
+podmanStream :: MonadIO m => PodmanClient -> Verb -> Path -> QueryArgs -> (IO ByteString -> IO a) -> m (Result a)
+podmanStream client verb (Path path) args cb = do
+  initRequest <- liftIO $ parseUrlThrow (T.unpack (baseUrl client <> path))
+  let request =
+        initRequest
+          { method = verb,
+            checkResponse = const . const $ pure ()
+          }
+  liftIO $
+    withResponse (withQs args request) (manager client) $ \response -> do
+      let Status code _ = responseStatus response
+          body = responseBody response
+      if code < 400
+        then Right <$> cb (brRead body)
+        else do
+          body' <- mconcat <$> brConsume body
+          case eitherDecodeStrict body' of
+            Right err -> pure $ Left err
             Left x -> error (show x)
 
 podmanReq :: (MonadIO m, ToJSON a, FromJSON b) => PodmanClient -> Verb -> Body a -> Path -> QueryArgs -> m (ResultB b)
