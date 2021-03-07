@@ -90,7 +90,7 @@ defTypes =
 responseTypes = ["LibpodInspectContainerResponse", "ContainerCreateResponse"]
 
 -- | Provided data types
-extraTypes = ["LinuxCapability", "SystemdRestartPolicy", "ExecResponse", "SecretCreateResponse", "ContainerChangeKind"]
+extraTypes = ["LinuxCapability", "SystemdRestartPolicy", "ExecResponse", "SecretCreateResponse", "ContainerChangeKind", "ContainerStatus"]
 
 -- | Smart constructors
 defSmartCtor = ["SpecGenerator", "ExecConfig", "ImagePullQuery"]
@@ -156,6 +156,9 @@ hardcodedTypes "namespace" "nsmode" =
 hardcodedTypes "generateSystemdQuery" "restartPolicy" =
   -- Use the provided SystemdRestartPolicy type
   Just "SystemdRestartPolicy"
+hardcodedTypes "inspectContainerState" "Status" =
+  -- USe the provided type
+  Just "ContainerStatus"
 -- TODO: report better type
 hardcodedTypes "logsQuery" "since" = Just "UTCTime"
 hardcodedTypes "logsQuery" "until" = Just "UTCTime"
@@ -195,11 +198,19 @@ isOptional "inspectContainerResponse" = \case
   -- Those are not set when the query doesn't set size to True
   "SizeRw" -> True
   "SizeRootFs" -> True
+  "OCIConfigPath" -> True
+  _ -> False
+isOptional "inspectContainerState" = \case
+  "ConmonPid" -> True
   _ -> False
 isOptional "inspectContainerConfig" = \case
   -- For some reason those are not set
   "SystemdMode" -> True
   "OnBuild" -> True
+  "CreateCommand" -> True
+  _ -> False
+isOptional "imageTreeResponse" = \case
+  "layers" -> True
   _ -> False
 isOptional "listContainerNamespaces" = const True
 isOptional "listContainer" = \case
@@ -393,7 +404,7 @@ renderAttribute tname desc name schemaE
     incCount
   where
     attributeDoc = case desc of
-      Just desc -> line (" -- | " <> toHaddock desc <> ".")
+      Just desc' -> line (" -- | " <> toHaddock desc' <> ".")
       Nothing -> pure ()
     toHaddock = T.replace "\n" " " . T.replace "/" "\\/" . T.takeWhile (/= '.')
     attributeType = if isOptional tname name then "Maybe (" <> attributeType' <> ")" else attributeType'
@@ -452,8 +463,10 @@ renderSchema name Schema {..} =
 
 data InputType = InQuery | InBody
 
+renderQuery :: Name -> Operation -> Builder ()
 renderQuery = renderInput InQuery
 
+renderBody :: Name -> Operation -> Builder ()
 renderBody = renderInput InBody
 
 renderInput :: InputType -> Name -> Operation -> Builder ()
@@ -515,7 +528,7 @@ renderCtor name _ =
     getValues Nothing = "Nothing"
     getValues (Just (x, _)) = x
     requiredItems = catMaybes typeItems
-    requiredTypes = map (\(name, typeName) -> "-- | " <> name <> "\n  " <> typeName) requiredItems
+    requiredTypes = map (\(name', typeName) -> "-- | " <> name' <> "\n  " <> typeName) requiredItems
     requiredNames = map fst requiredItems
     impl = name <> " " <> T.intercalate " " (map getValues typeItems)
 
@@ -567,6 +580,7 @@ renderTypes Swagger {..} = go
       systemdPolicy
       execResp
       containerChange
+      containerStatus
       mapM_ renderNewType newTypes
       mapM_ goDef defTypes
       mapM_ goResp responseTypes
@@ -628,6 +642,25 @@ renderTypes Swagger {..} = go
       renderDeriving "ExecResponse"
       line "newtype SecretCreateResponse = SecretCreateResponse { _secretCreateResponseID :: Text"
       renderDeriving "SecretCreateResponse"
+    containerStatus = do
+      let mapping =
+            map
+              (\x -> ("Status" <> T.toTitle x, x))
+              [ "unknown",
+                "configured",
+                "created",
+                "running",
+                "stopped",
+                "paused",
+                "exited",
+                "removing",
+                "stopping"
+              ]
+      line $ "data ContainerStatus"
+      line $ "  = " <> (T.intercalate " | " (map fst mapping))
+      line "  deriving stock (Eq, Generic)"
+      line ""
+      mkInstances "ContainerStatus" mapping
     systemdPolicy = do
       line "data SystemdRestartPolicy"
       line "  = SystemdRestartPolicyNo"
@@ -639,40 +672,42 @@ renderTypes Swagger {..} = go
       line "  deriving stock (Eq, Generic)"
       line ""
       let mapping =
-            [ ("No", "no"),
-              ("OnSuccess", "on-success"),
-              ("OnAbnormal", "on-abnormal"),
-              ("OnWatchdog", "on-watchdog"),
-              ("OnAbort", "on-abort"),
-              ("Always", "always")
+            [ ("SystemdRestartPolicyNo", "no"),
+              ("SystemdRestartPolicyOnSuccess", "on-success"),
+              ("SystemdRestartPolicyOnAbnormal", "on-abnormal"),
+              ("SystemdRestartPolicyOnWatchdog", "on-watchdog"),
+              ("SystemdRestartPolicyOnAbort", "on-abort"),
+              ("SystemdRestartPolicyAlways", "always")
             ]
-      line "instance Show SystemdRestartPolicy where"
+      mkInstances "SystemdRestartPolicy" mapping
+    mkInstances name mapping = do
+      line $ "instance Show " <> name <> " where"
       mapM_
-        ( \(name, value) ->
-            line $ "  show SystemdRestartPolicy" <> name <> " = \"" <> value <> "\""
+        ( \(name', value) ->
+            line $ "  show " <> name' <> " = \"" <> value <> "\""
         )
         mapping
       line ""
-      line "instance ToJSON SystemdRestartPolicy where"
+      line $ "instance ToJSON " <> name <> " where"
       mapM_
-        ( \(name, value) ->
-            line $ "  toJSON SystemdRestartPolicy" <> name <> " = String \"" <> value <> "\""
+        ( \(name', value) ->
+            line $ "  toJSON " <> name' <> " = String \"" <> value <> "\""
         )
         mapping
       line ""
-      line "instance FromJSON SystemdRestartPolicy where"
-      line "  parseJSON = withText \"policy\" $ \\txt -> pure $ case txt of"
+      line $ "instance FromJSON " <> name <> " where"
+      line $ "  parseJSON = withText \"" <> name <> "\" $ \\txt -> pure $ case txt of"
       mapM_
-        ( \(name, value) ->
-            line $ "    \"" <> value <> "\" -> SystemdRestartPolicy" <> name
+        ( \(name', value) ->
+            line $ "    \"" <> value <> "\" -> " <> name'
         )
         mapping
-      line "    x -> error (\"Unknown policy\" <> T.unpack x)"
+      line $ "    x -> error (\"Unknown " <> name <> "\" <> T.unpack x)"
       line ""
 
 main :: IO ()
 main = do
-  schema <- decodeFileEither "openapi.yaml"
+  schema <- decodeFileEither "swagger-latest.yaml"
   case schema of
     Right schema' -> T.putStrLn $ snd $ runWriter $ evalStateT (renderTypes (fixSchema schema')) $ Env 0
     Left err -> error (show err)

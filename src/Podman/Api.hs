@@ -99,6 +99,12 @@ getVersion client = withResult <$> podmanGet client (Path "version") mempty
 newtype ContainerName = ContainerName Text
   deriving stock (Show, Eq)
 
+notFoundToFalse :: Maybe Error -> Result Bool
+notFoundToFalse Nothing = pure True
+notFoundToFalse (Just err@Error {..})
+  | _errorresponse == 404 = pure False
+  | otherwise = Left err
+
 -- | Quick way to determine if a container exists by name or ID
 containerExists ::
   MonadIO m =>
@@ -106,10 +112,9 @@ containerExists ::
   PodmanClient ->
   -- | The container name
   ContainerName ->
-  -- | Returns Nothing when the container exists
-  m (Maybe Error)
+  m (Result Bool)
 containerExists client (ContainerName name) = do
-  withoutResult <$> podmanGet client (Path ("v1/libpod/containers/" <> name <> "/exists")) mempty
+  notFoundToFalse . withoutResult <$> podmanGet client (Path ("v1/libpod/containers/" <> name <> "/exists")) mempty
 
 -- | Return low-level information about a container.
 containerInspect ::
@@ -371,7 +376,7 @@ containerAttach ::
   PodmanClient ->
   -- | The container name
   ContainerName ->
-  -- | The attach query, uses 'defaultAttachQuery'
+  -- | The attach query, use 'defaultAttachQuery'
   AttachQuery ->
   -- | The callback
   (ContainerConnection -> IO a) ->
@@ -533,7 +538,7 @@ imageList ::
   MonadIO m =>
   -- | The client instance
   PodmanClient ->
-  -- | The list query, uses 'defaultImageListQuery'
+  -- | The list query, use 'defaultImageListQuery'
   ImageListQuery ->
   m (Result [ImageSummary])
 imageList client ImageListQuery {..} =
@@ -548,10 +553,9 @@ imageExists ::
   PodmanClient ->
   -- | The image name
   ImageName ->
-  -- | Returns Nothing when the image exists
-  m (Maybe Error)
-imageExists client (ImageName name) =
-  withoutResult <$> podmanGet client (Path ("v1/libpod/images/" <> name <> "/exists")) mempty
+  m (Result Bool)
+imageExists client (ImageName name) = do
+  notFoundToFalse . withoutResult <$> podmanGet client (Path ("v1/libpod/images/" <> name <> "/exists")) mempty
 
 -- | Retrieve the image tree for the provided image name or ID
 imageTree ::
@@ -674,9 +678,12 @@ execCreate ::
   ContainerName ->
   -- | The exec config
   ExecConfig ->
-  m (Result ExecResponse)
+  m (Result ExecId)
 execCreate client (ContainerName name) config =
-  withResult <$> podmanPost client (Json config) (Path ("v1/libpod/containers/" <> name <> "/exec")) mempty
+  (fmap . fmap $ getId) withResult
+    <$> podmanPost client (Json config) (Path ("v1/libpod/containers/" <> name <> "/exec")) mempty
+  where
+    getId (ExecResponse id') = ExecId id'
 
 newtype ExecId = ExecId Text
   deriving stock (Show, Eq)

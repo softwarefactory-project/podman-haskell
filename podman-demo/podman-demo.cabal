@@ -1,13 +1,14 @@
 cabal-version:       2.4
-name:                podman-codegen
-synopsis:            A tool to generate haskell types from swagger file
+name:                podman-demo
+synopsis:            A tool to demonstrate podman client usage
 version:             0.0.0.0
 license:             Apache-2.0
 category:            System
 build-type:          Simple
 tested-with:         GHC == 8.10.3
 
-executable podman-codegen
+executable podman-demo
+  main-is:             Demo.hs
   ghc-options:         -Wall
                        -Wcompat
                        -Widentities
@@ -25,12 +26,7 @@ executable podman-codegen
   if impl(ghc >= 8.10)
     ghc-options:       -Wunused-packages
   default-language:    Haskell2010
-
-  build-depends:       base                      < 5
-                     , aeson                     >= 1.0.0.0  && < 1.6
-                     , insert-ordered-containers
-                     , mtl
-                     , swagger2
-                     , text                      >= 0.11.1.0 && < 1.3
-                     , yaml
-  main-is:             Codegen.hs
+  build-depends:       base < 5
+                     , async
+                     , podman
+                     , text
