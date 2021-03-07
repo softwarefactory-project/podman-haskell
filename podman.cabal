@@ -60,6 +60,7 @@ library
                      , time                   < 1.12
   hs-source-dirs:      src
   exposed-modules:     Podman
+                     , Podman.Internal
                      , Podman.Types
   other-modules:       Podman.Api
                      , Podman.Client
@@ -70,6 +71,7 @@ test-suite podman-haskell-test
   hs-source-dirs:      test
   main-is:             Spec.hs
   build-depends:       aeson                  >= 1.0.0.0  && < 1.6
+                     , bytestring             < 0.12
                      , podman
                      , tasty                  >= 0.11.2   && < 1.5
                      , tasty-hunit            >= 0.10     && < 0.11

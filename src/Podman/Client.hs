@@ -246,8 +246,8 @@ withResult :: ResultM (Body a) -> Result a
 withResult = \case
   Left err -> Left err
   Right (Just (Json x)) -> Right x
-  Right (Just (Raw _)) -> error "Raw response"
-  Right (Just (LazyRaw _)) -> error "Raw response"
+  Right (Just (Raw x)) -> error ("Raw response: " <> show x)
+  Right (Just (LazyRaw x)) -> error ("Raw response: " <> show x)
   Right (Just NoBody) -> error "Raw response"
   Right Nothing -> error "Empty response"
 
