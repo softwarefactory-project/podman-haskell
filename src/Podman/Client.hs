@@ -17,6 +17,7 @@ module Podman.Client
     -- * Request helper
     Path (..),
     QueryValue (..),
+    QueryArgs,
     qdate,
     withoutResult,
     withRaw,

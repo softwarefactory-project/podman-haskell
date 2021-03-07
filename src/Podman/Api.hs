@@ -18,10 +18,17 @@ module Podman.Api
     containerInspect,
     containerList,
     containerCreate,
+    WaitCondition (..),
+    containerWait,
     mkSpecGenerator,
     containerStart,
     containerDelete,
     containerKill,
+    containerMount,
+    containerPause,
+    containerUnpause,
+    containerRename,
+    containerRestart,
     containerSendFiles,
     containerGetFiles,
     containerAttach,
@@ -68,12 +75,16 @@ import qualified Codec.Archive.Tar as Tar
 import Control.Monad.IO.Class (MonadIO (..))
 import qualified Data.Binary.Get as B
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Map (Map)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import Podman.Client
 import Podman.Types
+import Text.Read (readMaybe)
 
 -- | Returns the Component Version information
 getVersion :: MonadIO m => PodmanClient -> m (Result Version)
@@ -130,6 +141,41 @@ containerList client ContainerListQuery {..} = do
 containerCreate :: MonadIO m => PodmanClient -> SpecGenerator -> m (Result ContainerCreateResponse)
 containerCreate client spec = withResult <$> podmanPost client (Json spec) (Path "v1/libpod/containers/create") mempty
 
+containerPath :: ContainerName -> Text -> Path
+containerPath (ContainerName name) action = Path ("v1/libpod/containers/" <> name <> "/" <> action)
+
+data WaitCondition
+  = Configured
+  | Created
+  | Running
+  | Stopped
+  | Paused
+  | Exited
+  | Removing
+  | Stopping
+  deriving stock (Eq, Show)
+
+-- | Wait on a container to met a given condition
+containerWait :: MonadIO m => PodmanClient -> ContainerName -> WaitCondition -> m (Either Error Int)
+containerWait client name wc = fmap toRc . withRaw <$> podmanPost client emptyBody (containerPath name "wait") qs
+  where
+    -- TODO: report type mismatch, the api returns an int
+    toRc = fromMaybe (error "couldn't read response") . readMaybe . BS.unpack
+    qs =
+      [ ( "condition",
+          Just $
+            QText $ case wc of
+              Configured -> "configured"
+              Created -> "created"
+              Running -> "running"
+              Stopped -> "stopped"
+              Paused -> "paused"
+              Exited -> "exited"
+              Removing -> "removing"
+              Stopping -> "stopping"
+        )
+      ]
+
 -- | Start a container
 containerStart ::
   MonadIO m =>
@@ -183,7 +229,7 @@ containerGetFiles client (ContainerName name) path = do
   where
     qs = [("path", Just $ QText path)]
 
--- | Ssend a signal to a container, defaults to killing the container
+-- | Send a signal to a container, defaults to killing the container
 containerKill ::
   MonadIO m =>
   -- | The client instance
@@ -197,6 +243,70 @@ containerKill client (ContainerName name) signal =
   withoutResult <$> podmanPost client emptyBody (Path ("v1/libpod/containers/" <> name <> "/kill")) qs
   where
     qs = [("signal", QText <$> signal)]
+
+-- | Mount a container to the filesystem
+containerMount ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The container name
+  ContainerName ->
+  m (Either Error FilePath)
+containerMount client (ContainerName name) =
+  toFilePath . withRaw <$> podmanPost client emptyBody (Path ("v1/libpod/containers/" <> name <> "/mount")) mempty
+  where
+    -- Uses T.init to drop the \n suffix of the response
+    -- TODO: reports the mismatch in the swagger example
+    toFilePath = fmap (T.unpack . T.init . T.decodeUtf8)
+
+containerPost_ :: MonadIO m => Text -> QueryArgs -> PodmanClient -> ContainerName -> m (Maybe Error)
+containerPost_ path qs client (ContainerName name) =
+  withoutResult <$> podmanPost client emptyBody (Path ("v1/libpod/containers/" <> name <> "/" <> path)) qs
+
+-- | Use the cgroups freezer to suspend all processes in a container.
+containerPause ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The container name
+  ContainerName ->
+  m (Maybe Error)
+containerPause = containerPost_ "pause" mempty
+
+-- | Unpause Container
+containerUnpause ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The container name
+  ContainerName ->
+  m (Maybe Error)
+containerUnpause = containerPost_ "unpause" mempty
+
+-- | Change the name of an existing container.
+containerRename ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The container name
+  ContainerName ->
+  -- | New name for the container
+  ContainerName ->
+  m (Maybe Error)
+containerRename client name (ContainerName new) = containerPost_ "rename" [("name", Just $ QText new)] client name
+
+-- | Restart a container
+containerRestart ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The container name
+  ContainerName ->
+  -- | Timeout before sending kill signal to container
+  Maybe Word ->
+  m (Maybe Error)
+containerRestart client name timeout =
+  containerPost_ "restart" [("timeout", QInt . fromIntegral <$> timeout)] client name
 
 -- | Delete container
 containerDelete ::
