@@ -41,7 +41,10 @@ module Podman.Api
     ContainerOutput (..),
 
     -- * Exec
+    ExecId (..),
     execCreate,
+    execInspect,
+    execStart,
 
     -- * Pod
     generateKubeYAML,
@@ -340,6 +343,16 @@ getContainerOutput = do
     2 -> Stderr msg
     _ -> error ("Unknown output type: " <> show t)
 
+getContainerOutputs :: B.Get [ContainerOutput]
+getContainerOutputs = do
+  empty <- B.isEmpty
+  if empty
+    then return []
+    else do
+      x <- getContainerOutput
+      xs <- getContainerOutputs
+      pure (x : xs)
+
 -- | A connection attached to a container.
 -- Note that full-duplex communication may require async threads because the http-client doesn't seems to expose aio
 -- (e.g. Connection doesn't have a fd, only a recv call)
@@ -620,6 +633,33 @@ execCreate ::
   m (Result ExecResponse)
 execCreate client (ContainerName name) config =
   withResult <$> podmanPost client (Json config) (Path ("v1/libpod/containers/" <> name <> "/exec")) mempty
+
+newtype ExecId = ExecId Text
+  deriving stock (Show, Eq)
+
+-- | Inspect an exec instance
+execInspect ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | Exec instance ID
+  ExecId ->
+  m (Result ExecInspectResponse)
+execInspect client (ExecId name) =
+  withResult <$> podmanGet client (Path ("v1/libpod/exec/" <> name <> "/json")) mempty
+
+-- | Start an exec instance
+execStart ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | Exec instance ID
+  ExecId ->
+  m (Result [ContainerOutput])
+execStart client (ExecId name) = do
+  fmap toOutput . withRaw <$> podmanPost client emptyObject (Path ("v1/libpod/exec/" <> name <> "/start")) mempty
+  where
+    toOutput = B.runGet getContainerOutputs . LBS.fromStrict
 
 newtype SecretName = SecretName Text
   deriving stock (Show, Eq)

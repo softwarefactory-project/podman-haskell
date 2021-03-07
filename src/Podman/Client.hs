@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -24,6 +25,8 @@ module Podman.Client
     withResult,
     withText,
     emptyBody,
+    emptyObject,
+    emptyValue,
     raw,
     lazyRaw,
     podmanGet,
@@ -39,7 +42,7 @@ module Podman.Client
 where
 
 import Control.Monad.IO.Class (MonadIO (..))
-import Data.Aeson (FromJSON, ToJSON, Value, eitherDecodeStrict, encode)
+import Data.Aeson (FromJSON, ToJSON, Value (Null, Object), eitherDecodeStrict, encode)
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Lazy as LBS
@@ -121,6 +124,7 @@ data Body a
   | Raw ByteString
   | LazyRaw LBS.ByteString
   | NoBody
+  deriving stock (Show)
 
 -- | Query string helper
 data QueryValue
@@ -235,7 +239,7 @@ withoutResult :: ResultM (Body Value) -> Maybe Error
 withoutResult = \case
   Left err -> Just err
   Right Nothing -> Nothing
-  Right (Just _) -> error "Unexpected response"
+  Right (Just x) -> error ("Unexpected response: " <> show x)
 
 -- | Raise an exception if there is no result
 withResult :: ResultM (Body a) -> Result a
@@ -262,6 +266,12 @@ withText x = T.decodeUtf8 <$> withRaw x
 -- | An empty body
 emptyBody :: Body Value
 emptyBody = NoBody
+
+emptyObject :: Body Value
+emptyObject = Json (Object mempty)
+
+emptyValue :: Body Value
+emptyValue = Json Null
 
 raw :: ByteString -> Body Value
 raw = Raw

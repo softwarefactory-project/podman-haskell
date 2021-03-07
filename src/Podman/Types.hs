@@ -44,6 +44,8 @@ module Podman.Types
     SecretInfoReport (..),
     SecretSpec (..),
     SecretDriverSpec (..),
+    ProcessConfig (..),
+    ExecInspectResponse (..),
     InspectContainerResponse (..),
     ContainerCreateResponse (..),
 
@@ -900,6 +902,41 @@ instance FromJSON SecretDriverSpec where
 
 instance ToJSON SecretDriverSpec where
   toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 17, omitNothingFields = True})
+
+data ProcessConfig = ProcessConfig
+  { _processConfigarguments :: [Text],
+    _processConfigentrypoint :: Text,
+    _processConfigprivileged :: Bool,
+    _processConfigtty :: Bool,
+    _processConfiguser :: Text
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON ProcessConfig where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 14, omitNothingFields = True})
+
+instance ToJSON ProcessConfig where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 14, omitNothingFields = True})
+
+data ExecInspectResponse = ExecInspectResponse
+  { _execInspectResponseCanRemove :: Bool,
+    _execInspectResponseContainerID :: Text,
+    _execInspectResponseExitCode :: Int,
+    _execInspectResponseID :: Text,
+    _execInspectResponseOpenStderr :: Bool,
+    _execInspectResponseOpenStdin :: Bool,
+    _execInspectResponseOpenStdout :: Bool,
+    _execInspectResponseRunning :: Bool,
+    _execInspectResponsePid :: Word64,
+    _execInspectResponseProcessConfig :: ProcessConfig
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON ExecInspectResponse where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 20, omitNothingFields = True})
+
+instance ToJSON ExecInspectResponse where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 20, omitNothingFields = True})
 
 data InspectContainerResponse = InspectContainerResponse
   { _inspectContainerResponseEffectiveCaps :: [LinuxCapability],

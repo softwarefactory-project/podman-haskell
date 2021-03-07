@@ -78,7 +78,10 @@ defTypes =
     -- secrets
     "SecretInfoReport",
     "SecretSpec",
-    "SecretDriverSpec"
+    "SecretDriverSpec",
+    -- exec
+    "ProcessConfig",
+    "ExecInspectResponse"
   ]
 
 -- | Responses
@@ -106,7 +109,10 @@ queryTypes =
 
 -- | In body data types
 bodyTypes :: [(Text, Name, PathItem -> Maybe Operation)]
-bodyTypes = [("/libpod/containers/{name}/exec", "ExecConfig", _pathItemPost)]
+bodyTypes =
+  [ ("/libpod/containers/{name}/exec", "ExecConfig", _pathItemPost)
+  --    ("/libpod/exec/{id}/start", "ExecStartConfig", _pathItemPost)
+  ]
 
 -- | Convert swagger name
 adaptName :: TypeName -> TypeName
@@ -129,6 +135,8 @@ hardcodedTypes "networkListReport" "Bytes" = Just "Text"
 -- TODO: generate proper type by using the `additionalProperties: {type: boolean}`
 hardcodedTypes "netConf" "capabilities" = Just "Maybe (M.Map Text Bool)"
 hardcodedTypes "containerChange" "_Kind" = Just "ContainerChangeKind"
+-- TODO: report exec response missing types
+hardcodedTypes "execInspectResponse" "_Pid" = Just "Word64"
 -- Better type: https://github.com/containers/podman/pull/9558
 hardcodedTypes "volume" "CreatedAt" = Just "UTCTime"
 hardcodedTypes "specGenerator" aname = case aname of
@@ -196,6 +204,7 @@ isOptional "listContainer" = \case
 isOptional "execConfig" = \case
   "Cmd" -> False
   _ -> True
+isOptional "execStartConfig" = const True
 isOptional "secretDriverSpec" = \case
   "Options" -> True
   _ -> False
@@ -241,6 +250,38 @@ instance ToJSON Version
 instance ToSchema Version
 
 -- TODO: report missing type
+data ProcessConfig = ProcessConfig
+  { _arguments :: [Text],
+    _entrypoint :: Text,
+    _privileged :: Bool,
+    _tty :: Bool,
+    _user :: Text
+  }
+  deriving stock (Generic)
+
+instance ToJSON ProcessConfig
+
+instance ToSchema ProcessConfig
+
+data ExecInspectResponse = ExecInspectResponse
+  { _CanRemove :: Bool,
+    _ContainerID :: Text,
+    _ExitCode :: Int,
+    _ID :: Text,
+    _OpenStderr :: Bool,
+    _OpenStdin :: Bool,
+    _OpenStdout :: Bool,
+    _Running :: Bool,
+    _Pid :: Int,
+    _ProcessConfig :: ProcessConfig
+  }
+  deriving stock (Generic)
+
+instance ToJSON ExecInspectResponse
+
+instance ToSchema ExecInspectResponse
+
+-- TODO: report missing type
 data ContainerChange = Containerchange {_Path :: Text, _Kind :: Int} deriving stock (Generic)
 
 instance ToJSON ContainerChange
@@ -261,8 +302,10 @@ fixSchema s@Swagger {..} = s {_swaggerDefinitions = newDef}
     newDef =
       M.insert "LibpodImageTreeResponse" (toSchema (Proxy :: Proxy LibpodImageTreeResponse)) $
         M.insert "ContainerChange" (toSchema (Proxy :: Proxy ContainerChange)) $
-          M.insert "Version" (toSchema (Proxy :: Proxy Version)) $
-            M.insert "Error" (toSchema (Proxy :: Proxy Error)) _swaggerDefinitions
+          M.insert "ExecInspectResponse" (toSchema (Proxy :: Proxy ExecInspectResponse)) $
+            M.insert "ProcessConfig" (toSchema (Proxy :: Proxy ProcessConfig)) $
+              M.insert "Version" (toSchema (Proxy :: Proxy Version)) $
+                M.insert "Error" (toSchema (Proxy :: Proxy Error)) _swaggerDefinitions
 
 -------------------------------------------------------------------------------
 -- OpenAPI to Haskell
@@ -425,6 +468,7 @@ renderInput it name Operation {..} =
       "ExecConfig" -> 10
       "AttachQuery" -> 6
       "LogsQuery" -> 5
+      "ExecStartConfig" -> 2
       x -> error ("Unknown record size: " <> show x)
     getBody ((Inline x) : xs) = case _paramSchema x of
       ParamBody (Inline s) -> s
