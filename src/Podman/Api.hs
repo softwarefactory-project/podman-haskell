@@ -55,6 +55,8 @@ module Podman.Api
     imageExists,
     imageList,
     imageTree,
+    imagePull,
+    imagePullRaw,
 
     -- * Network
     NetworkName (..),
@@ -86,6 +88,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import Podman.Client
+import Podman.Internal
 import Podman.Types
 import Text.Read (readMaybe)
 
@@ -564,6 +567,47 @@ imageTree client (ImageName name) whatrequires =
   withResult <$> podmanGet client (Path ("v1/libpod/images/" <> name <> "/tree")) qs
   where
     qs = [("whatrequires", QBool <$> whatrequires)]
+
+-- | Pull one or more images from a container registry.
+imagePull ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The pull query, use 'mkImagePullQuery'
+  ImagePullQuery ->
+  m (Result [ImageName])
+imagePull = (fmap . fmap $ getImageNames) . imagePullRaw
+  where
+    getImageNames (Right x@ImagesPullResponse {..}) = case _imagesPullResponseimages of
+      Just ids -> Right $ map ImageName ids
+      Nothing -> Left $ Error "pull failed" (T.pack $ show x) 404
+    getImageNames (Left x) = Left x
+
+-- | Pull one or more images from a container registry with the full results.
+imagePullRaw ::
+  MonadIO m =>
+  -- | The client instance
+  PodmanClient ->
+  -- | The pull query, use 'mkImagePullQuery'
+  ImagePullQuery ->
+  m (Result ImagesPullResponse)
+imagePullRaw client ImagePullQuery {..} = do
+  r <- withRaw <$> podmanPost client emptyBody (Path "v1/libpod/images/pull") qs
+  pure $ case r of
+    Right bs -> case decodeImagePullResponse bs of
+      Left x -> error x
+      Right x -> Right x
+    Left x -> Left x
+  where
+    qs =
+      [ ("reference", Just $ QText _imagePullQueryreference),
+        ("credentials", QText <$> _imagePullQuerycredentials),
+        ("Arch", QText <$> _imagePullQueryArch),
+        ("OS", QText <$> _imagePullQueryOS),
+        ("Variant", QText <$> _imagePullQueryVariant),
+        ("tlsVerify", QBool <$> _imagePullQuerytlsVerify),
+        ("allTags", QBool <$> _imagePullQueryallTags)
+      ]
 
 newtype NetworkName = NetworkName Text
   deriving stock (Show, Eq)

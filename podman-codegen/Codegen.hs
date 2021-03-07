@@ -67,6 +67,8 @@ defTypes =
     -- TODO: use response types when fixed
     "LibpodImageTreeResponse",
     "ContainerChange",
+    -- images
+    "LibpodImagesPullReport",
     -- networks
     "DNS",
     "NetConf",
@@ -91,7 +93,7 @@ responseTypes = ["LibpodInspectContainerResponse", "ContainerCreateResponse"]
 extraTypes = ["LinuxCapability", "SystemdRestartPolicy", "ExecResponse", "SecretCreateResponse", "ContainerChangeKind"]
 
 -- | Smart constructors
-defSmartCtor = ["SpecGenerator", "ExecConfig"]
+defSmartCtor = ["SpecGenerator", "ExecConfig", "ImagePullQuery"]
 
 -- | Provided new types
 newTypes :: [(TypeName, Text)]
@@ -104,7 +106,8 @@ queryTypes =
     ("/libpod/generate/{name:.*}/systemd", "GenerateSystemdQuery", _pathItemGet),
     ("/images/json", "ImageListQuery", _pathItemGet),
     ("/libpod/containers/{name}/attach", "AttachQuery", _pathItemPost),
-    ("/libpod/containers/{name}/logs", "LogsQuery", _pathItemGet)
+    ("/libpod/containers/{name}/logs", "LogsQuery", _pathItemGet),
+    ("/libpod/images/pull", "ImagePullQuery", _pathItemPost)
   ]
 
 -- | In body data types
@@ -118,6 +121,7 @@ bodyTypes =
 adaptName :: TypeName -> TypeName
 adaptName "LibpodInspectContainerResponse" = "InspectContainerResponse"
 adaptName "LibpodImageTreeResponse" = "ImageTreeResponse"
+adaptName "LibpodImagesPullReport" = "ImagesPullResponse"
 adaptName "DNS" = "Dns"
 adaptName x = x
 
@@ -167,8 +171,12 @@ isOptional "volume" = \case
   "UsageData" -> True
   _ -> False
 isOptional "containerListQuery" = const True
+isOptional "imagesPullResponse" = const True
 isOptional "netConf" = \case
   "type" -> False
+  _ -> True
+isOptional "imagePullQuery" = \case
+  "reference" -> False
   _ -> True
 isOptional "networkListReport" = \case
   "Labels" -> True
@@ -218,6 +226,8 @@ skipTypes "imageListQuery" "digests" = True
 skipTypes _ "Healthcheck" = True
 skipTypes "inspectContainerConfig" "Volumes" = True
 skipTypes "inspectContainerConfig" "Timezone" = True
+-- compat value
+skipTypes "imagesPullResponse" "id" = True
 -- this skip is legitimate because it is manged by the api function
 skipTypes "logsQuery" n
   | n `elem` ["stdout", "stderr"] = True
@@ -499,6 +509,7 @@ renderCtor name _ =
     (pre, after, xs) = case name of
       "SpecGenerator" -> (13, 72, [("image", "Text")])
       "ExecConfig" -> (5, 4, [("cmd", "[Text]")])
+      "ImagePullQuery" -> (0, 6, [("reference", "Text")])
       _ -> error ("Unknown ctor: " <> T.unpack name)
     typeItems = replicate pre Nothing <> map Just xs <> replicate after Nothing
     getValues Nothing = "Nothing"
@@ -567,7 +578,7 @@ renderTypes Swagger {..} = go
     goExportCtor name = line ("  mk" <> adaptName name <> ",")
     goExportQuery (_, name, _) = do
       line ("  " <> adaptName name <> " (..),")
-      line ("  default" <> adaptName name <> ",")
+      unless (name `elem` defSmartCtor) (line ("  default" <> adaptName name <> ","))
     goPath (path, name, op) = case M.lookup (T.unpack path) _swaggerPaths of
       Just path' -> case op path' of
         Just operation -> renderQuery name operation

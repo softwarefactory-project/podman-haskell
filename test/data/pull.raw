@@ -1,0 +1,9 @@
+{"stream":"Resolved \"fedora\" as an alias (/etc/containers/registries.conf.d/shortnames.conf)\\n"}
+{"stream":"Trying to pull registry.fedoraproject.org/fedora:latest...\\n"}
+{"stream":"Getting image source signatures\\n"}
+{"stream":"Copying blob sha256:157ab801145489f145f258148bd135102a3294e420f1859a39e824e7cda56b2f\\n"}
+{"stream":"Copying config sha256:9f2a56037643a68ea81711a8eeb4501428eefd40b000c866ad9745a581c0464d\\n"}
+{"stream":"Writing manifest to image destination\\n"}
+{"stream":"Storing signatures\\n"}
+{"images":["9f2a56037643a68ea81711a8eeb4501428eefd40b000c866ad9745a581c0464d"]}
+{"id":"9f2a56037643a68ea81711a8eeb4501428eefd40b000c866ad9745a581c0464d"}

@@ -35,6 +35,7 @@ module Podman.Types
     ImageSummary (..),
     ImageTreeResponse (..),
     ContainerChange (..),
+    ImagesPullResponse (..),
     Dns (..),
     NetConf (..),
     NetworkConfig (..),
@@ -60,6 +61,7 @@ module Podman.Types
     defaultAttachQuery,
     LogsQuery (..),
     defaultLogsQuery,
+    ImagePullQuery (..),
 
     -- * Bodies
     ExecConfig (..),
@@ -67,6 +69,7 @@ module Podman.Types
     -- * Smart Constructors
     mkSpecGenerator,
     mkExecConfig,
+    mkImagePullQuery,
   )
 where
 
@@ -760,6 +763,22 @@ instance FromJSON ContainerChange where
 instance ToJSON ContainerChange where
   toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 16, omitNothingFields = True})
 
+data ImagesPullResponse = ImagesPullResponse
+  { -- | Stream used to provide output from c\/image.
+    _imagesPullResponsestream :: Maybe Text,
+    -- | Images contains the ID's of the images pulled.
+    _imagesPullResponseimages :: Maybe [Text],
+    -- | Error contains text of errors from c\/image.
+    _imagesPullResponseerror :: Maybe Text
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON ImagesPullResponse where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 19, omitNothingFields = True})
+
+instance ToJSON ImagesPullResponse where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 19, omitNothingFields = True})
+
 -- | DNS contains values interesting for DNS resolvers
 data Dns = Dns
   { _dnsdomain :: Maybe Text,
@@ -1121,6 +1140,31 @@ instance ToJSON LogsQuery where
 defaultLogsQuery :: LogsQuery
 defaultLogsQuery = LogsQuery Nothing Nothing Nothing Nothing Nothing
 
+-- | Pull images parameters
+data ImagePullQuery = ImagePullQuery
+  { -- | Mandatory reference to the image (e.
+    _imagePullQueryreference :: Text,
+    -- | username:password for the registry.
+    _imagePullQuerycredentials :: Maybe Text,
+    -- | Pull image for the specified architecture.
+    _imagePullQueryArch :: Maybe Text,
+    -- | Pull image for the specified operating system.
+    _imagePullQueryOS :: Maybe Text,
+    -- | Pull image for the specified variant.
+    _imagePullQueryVariant :: Maybe Text,
+    -- | Require TLS verification.
+    _imagePullQuerytlsVerify :: Maybe Bool,
+    -- | Pull all tagged images in the repository.
+    _imagePullQueryallTags :: Maybe Bool
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON ImagePullQuery where
+  parseJSON = genericParseJSON (defaultOptions {fieldLabelModifier = drop 15, omitNothingFields = True})
+
+instance ToJSON ImagePullQuery where
+  toJSON = genericToJSON (defaultOptions {fieldLabelModifier = drop 15, omitNothingFields = True})
+
 -- | Create an exec instance parameters
 data ExecConfig = ExecConfig
   { -- | A list of environment variables in the form ["VAR=value", .
@@ -1165,3 +1209,10 @@ mkExecConfig ::
   [Text] ->
   ExecConfig
 mkExecConfig cmd = ExecConfig Nothing Nothing Nothing Nothing Nothing cmd Nothing Nothing Nothing Nothing
+
+-- | Creates a 'ImagePullQuery' by setting all the optional attributes to Nothing
+mkImagePullQuery ::
+  -- | reference
+  Text ->
+  ImagePullQuery
+mkImagePullQuery reference = ImagePullQuery reference Nothing Nothing Nothing Nothing Nothing Nothing
