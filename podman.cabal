@@ -3,7 +3,12 @@ name:                podman
 version:             0.1.0.0
 synopsis:            A podman remote client library
 description:
-    Podman is a client library to interface with https://podman.io/
+    Podman is a client library to interface with <https://podman.io/ podman>.
+    .
+    Read the "Podman.Tutorial" for a detailed tutorial.
+    .
+    @podman@ is designed to be beginner-friendly. For compat API, use the
+    <https://hackage.haskell.org/package/docker docker> client instead.
     .
 homepage:            https://github.com/softwarefactory-project/podman-haskell#readme
 bug-reports:         https://github.com/softwarefactory-project/podman-haskell/issues
@@ -16,7 +21,7 @@ category:            System
 build-type:          Simple
 extra-doc-files:     CHANGELOG.md
                      README.md
-extra-source-files:  test/data/*.json
+extra-source-files:  test/data/*.json test/data/*.raw
 tested-with:         GHC == 8.10.3
 
 source-repository head
@@ -61,6 +66,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     Podman
                      , Podman.Internal
+                     , Podman.Tutorial
                      , Podman.Types
   other-modules:       Podman.Api
                      , Podman.Client

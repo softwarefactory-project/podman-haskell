@@ -11,6 +11,7 @@ module Podman.Types
     ExecResponse (..),
     SecretCreateResponse (..),
     ContainerChangeKind (..),
+    ContainerStatus (..),
 
     -- * Responses
     IP (..),
@@ -117,14 +118,14 @@ instance ToJSON SystemdRestartPolicy where
   toJSON SystemdRestartPolicyAlways = String "always"
 
 instance FromJSON SystemdRestartPolicy where
-  parseJSON = withText "policy" $ \txt -> pure $ case txt of
+  parseJSON = withText "SystemdRestartPolicy" $ \txt -> pure $ case txt of
     "no" -> SystemdRestartPolicyNo
     "on-success" -> SystemdRestartPolicyOnSuccess
     "on-abnormal" -> SystemdRestartPolicyOnAbnormal
     "on-watchdog" -> SystemdRestartPolicyOnWatchdog
     "on-abort" -> SystemdRestartPolicyOnAbort
     "always" -> SystemdRestartPolicyAlways
-    x -> error ("Unknown policy" <> T.unpack x)
+    x -> error ("Unknown SystemdRestartPolicy" <> T.unpack x)
 
 newtype ExecResponse = ExecResponse
   { _execResponseId :: Text
@@ -161,6 +162,53 @@ instance FromJSON ContainerChangeKind where
     1 -> Added
     2 -> Deleted
     x -> error ("Unknown change kind " <> show x)
+
+data ContainerStatus
+  = StatusUnknown
+  | StatusConfigured
+  | StatusCreated
+  | StatusRunning
+  | StatusStopped
+  | StatusPaused
+  | StatusExited
+  | StatusRemoving
+  | StatusStopping
+  deriving stock (Eq, Generic)
+
+instance Show ContainerStatus where
+  show StatusUnknown = "unknown"
+  show StatusConfigured = "configured"
+  show StatusCreated = "created"
+  show StatusRunning = "running"
+  show StatusStopped = "stopped"
+  show StatusPaused = "paused"
+  show StatusExited = "exited"
+  show StatusRemoving = "removing"
+  show StatusStopping = "stopping"
+
+instance ToJSON ContainerStatus where
+  toJSON StatusUnknown = String "unknown"
+  toJSON StatusConfigured = String "configured"
+  toJSON StatusCreated = String "created"
+  toJSON StatusRunning = String "running"
+  toJSON StatusStopped = String "stopped"
+  toJSON StatusPaused = String "paused"
+  toJSON StatusExited = String "exited"
+  toJSON StatusRemoving = String "removing"
+  toJSON StatusStopping = String "stopping"
+
+instance FromJSON ContainerStatus where
+  parseJSON = withText "ContainerStatus" $ \txt -> pure $ case txt of
+    "unknown" -> StatusUnknown
+    "configured" -> StatusConfigured
+    "created" -> StatusCreated
+    "running" -> StatusRunning
+    "stopped" -> StatusStopped
+    "paused" -> StatusPaused
+    "exited" -> StatusExited
+    "removing" -> StatusRemoving
+    "stopping" -> StatusStopping
+    x -> error ("Unknown ContainerStatus" <> T.unpack x)
 
 -- | A type safe wrapper for [Word8]
 newtype IP = IP [Word8]
@@ -213,12 +261,12 @@ instance ToJSON Version where
 -- Docker, but here we see more fields that are unused (nonsensical in the
 -- context of Libpod).
 data InspectContainerState = InspectContainerState
-  { _inspectContainerStateStatus :: Text,
+  { _inspectContainerStateStatus :: ContainerStatus,
     _inspectContainerStateDead :: Bool,
     _inspectContainerStateOciVersion :: Text,
     _inspectContainerStateRestarting :: Bool,
     _inspectContainerStateError :: Text,
-    _inspectContainerStateConmonPid :: Int64,
+    _inspectContainerStateConmonPid :: Maybe Int64,
     _inspectContainerStateStartedAt :: UTCTime,
     _inspectContainerStateFinishedAt :: UTCTime,
     _inspectContainerStateRunning :: Bool,
@@ -275,7 +323,7 @@ data InspectContainerConfig = InspectContainerConfig
     -- | Whether the container leaves STDIN open.
     _inspectContainerConfigOpenStdin :: Bool,
     -- | CreateCommand is the full command plus arguments of the process the container has been created with.
-    _inspectContainerConfigCreateCommand :: [Text],
+    _inspectContainerConfigCreateCommand :: Maybe [Text],
     -- | Unused, at present.
     _inspectContainerConfigAttachStdout :: Bool,
     -- | Whether the container creates a TTY.
@@ -493,7 +541,7 @@ data ListContainer = ListContainer
     -- | State of container.
     _listContainerState :: Text,
     -- | Container command.
-    _listContainerCommand :: [Text],
+    _listContainerCommand :: Maybe [Text],
     -- | Container image.
     _listContainerImage :: Text,
     _listContainerSize :: Maybe ContainerSize,
@@ -741,7 +789,7 @@ instance ToJSON ImageSummary where
 
 data ImageTreeResponse = ImageTreeResponse
   { _imageTreeResponseTree :: Text,
-    _imageTreeResponselayers :: [Text]
+    _imageTreeResponselayers :: Maybe [Text]
   }
   deriving stock (Show, Eq, Generic)
 
@@ -967,7 +1015,7 @@ data InspectContainerResponse = InspectContainerResponse
     _inspectContainerResponseImage :: Text,
     _inspectContainerResponseConfig :: InspectContainerConfig,
     _inspectContainerResponseHostnamePath :: Text,
-    _inspectContainerResponseOCIConfigPath :: Text,
+    _inspectContainerResponseOCIConfigPath :: Maybe Text,
     _inspectContainerResponseExecIDs :: [Text],
     _inspectContainerResponsePath :: Text,
     _inspectContainerResponseConmonPidFile :: Text,
