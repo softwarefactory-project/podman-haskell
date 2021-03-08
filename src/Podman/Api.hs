@@ -77,11 +77,13 @@ module Podman.Api
 where
 
 import qualified Codec.Archive.Tar as Tar
+import Control.Monad ((>=>))
 import Control.Monad.IO.Class (MonadIO (..))
 import qualified Data.Binary.Get as B
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as LBS
+import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Map (Map)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -365,7 +367,7 @@ getContainerOutputs = do
 -- Note that full-duplex communication may require async threads because the http-client doesn't seems to expose aio
 -- (e.g. Connection doesn't have a fd, only a recv call)
 data ContainerConnection = ContainerConnection
-  { containerRead :: IO ContainerOutput,
+  { containerRecv :: IO ContainerOutput,
     containerSend :: ByteString -> IO ()
   }
 
@@ -382,19 +384,26 @@ containerAttach ::
   (ContainerConnection -> IO a) ->
   m (Result a)
 containerAttach client (ContainerName name) AttachQuery {..} cb = do
-  podmanConn client "POST" (Path ("v1/libpod/containers/" <> name <> "/attach")) qs (cb . cc)
+  podmanConn client "POST" (Path ("v1/libpod/containers/" <> name <> "/attach")) qs (cc >=> cb)
   where
-    cc :: Connection -> ContainerConnection
-    cc conn = ContainerConnection (cr conn) (connectionWrite conn)
-    cr :: Connection -> IO ContainerOutput
-    cr conn = do
-      buf <- connectionRead conn
+    cc :: Connection -> IO ContainerConnection
+    cc conn = do
+      acc <- newIORef ""
+      pure $ ContainerConnection (cr acc conn) (connectionWrite conn)
+    cr :: IORef LBS.ByteString -> Connection -> IO ContainerOutput
+    cr acc conn = do
+      before <- readIORef acc
+      buf <- mappend before . LBS.fromStrict <$> connectionRead conn
       case buf of
         "" -> pure EOF
         _ -> do
-          -- liftIO $ print buf
-          -- TODO: read more when the buffer is too small
-          pure $ B.runGet getContainerOutput (LBS.fromStrict buf)
+          case B.runGetOrFail getContainerOutput buf of
+            Left (_, _, _) -> do
+              writeIORef acc buf
+              cr acc conn
+            Right (rest, _, log') -> do
+              writeIORef acc rest
+              pure log'
     qs =
       [ ("detachKeys", QText <$> _attachQuerydetachKeys),
         ("logs", QBool <$> _attachQuerylogs),

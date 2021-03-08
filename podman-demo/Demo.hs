@@ -3,9 +3,12 @@
 -- | A demo program
 module Main (main) where
 
+import qualified Codec.Archive.Tar as Tar
+import qualified Codec.Archive.Tar.Entry as Tar
 import Control.Concurrent.Async (async, waitAnyCancel)
 import Control.Monad (unless, when)
 import Control.Monad.IO.Class (MonadIO (..))
+import Data.ByteString.Lazy (ByteString)
 import Data.Either (fromRight)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
@@ -133,6 +136,27 @@ version client = do
     Left err -> abort "getVersion" err
     Right x -> ok "version" x
 
+-- | Create a tarball
+tar :: [(FilePath, ByteString)] -> Either String [Tar.Entry]
+tar = mapM (\(path, content) -> Tar.fileEntry <$> Tar.toTarPath False path <*> pure content)
+
+-- | Copy and retrieve files
+filesCopy :: MonadIO m => PodmanClient -> ContainerName -> m ()
+filesCopy client name = do
+  let tarball = case tar [("test.dat", "test-data")] of
+        Right x -> x
+        Left e -> error "Tarball creation failed" e
+  trace "containerSendFiles" tarball
+  sendRes <- containerSendFiles client name tarball "/tmp/test-send" Nothing
+  case sendRes of
+    Just err -> abort "containerSendFiles" err
+    Nothing -> ok "file sent" ()
+  trace "containerGetFiles" ()
+  getRes <- containerGetFiles client name "/tmp/test-send"
+  case getRes of
+    Left err -> error "containerGetFiles" err
+    Right x -> ok "file received" x
+
 -- | A demo program that tries to call every api
 demo :: MonadIO m => ImageName -> ContainerName -> PodmanClient -> m ()
 demo imageName containerName client = do
@@ -141,8 +165,10 @@ demo imageName containerName client = do
   listImages client
   showImage client imageName
   ensureContainer client imageName containerName
-  execContainer client containerName ["cat", "/etc/os-release"]
   interactiveAttach client containerName
+  execContainer client containerName ["cat", "/etc/os-release"]
+  filesCopy client containerName
+  tailContainer client containerName False
   killContainer client containerName
 
 -- | Demonstrate an interactive session
@@ -178,15 +204,18 @@ interactiveAttach client name = do
           containerSend conn x
           writer conn
     reader conn = do
-      dat <- containerRead conn
+      dat <- containerRecv conn
       print dat
       when (dat /= EOF) (reader conn)
 
 -- | Tail a container logs
-tailContainer :: MonadIO m => PodmanClient -> ContainerName -> m ()
-tailContainer _client name = do
+tailContainer :: MonadIO m => PodmanClient -> ContainerName -> Bool -> m ()
+tailContainer client name follow = do
   trace "containerLogs" name
-  error "TODO"
+  res <- containerLogs client name LogBoth (defaultLogsQuery {_logsQueryfollow = Just follow}) print
+  case res of
+    Just err -> error "containerLogs" err
+    Nothing -> ok "logs printed" ()
 
 -- | Ensure a container exists and attach to it
 shell :: MonadIO m => PodmanClient -> m ()
@@ -224,7 +253,7 @@ main = do
   case map T.pack args of
     [url, image, container] -> withClient url (demo (ImageName image) (ContainerName container))
     [url, "shell"] -> withClient url shell
-    [url, container] -> withClient url (`tailContainer` ContainerName container)
+    [url, container] -> withClient url (\client -> tailContainer client (ContainerName container) True)
     _ -> putStrLn "usage: podman-demo url image-name container-name"
 
 -- Some helper functions
