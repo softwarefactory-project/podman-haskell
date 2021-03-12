@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- | Internal function exposed for testing purpose
+-- | Internal function for custom decoding purpose
 module Podman.Internal (decodeImagePullResponse) where
 
 import Data.Aeson (eitherDecodeStrict)
